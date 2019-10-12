@@ -11,3 +11,13 @@ const GiB: usize = 0x40000000;
 
 const PAGE_4K: usize = 2 * KiB;
 const PAGE_2M: usize = 2 * MiB;
+
+trait AlignedAddress {
+    fn aligned(&self, shift: u8) -> bool;
+}
+
+impl AlignedAddress for u64 {
+    fn aligned(&self, shift: u8) -> bool {
+        return ((*self) & ((1 << shift) - 1)) == 0;
+    }
+}
