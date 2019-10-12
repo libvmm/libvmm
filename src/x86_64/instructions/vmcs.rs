@@ -1,3 +1,4 @@
+use crate::{AlignedAddress, SHIFT_4K};
 use bitflags::bitflags;
 use libvmm_macros::*;
 
@@ -393,4 +394,45 @@ pub enum VMCSField64Host {
     IA32_SYSENTER_EIP           = 0x00006c12,
     RSP                         = 0x00006c14,
     RIP                         = 0x00006c16,
+}
+
+pub struct VMCS {
+    launched: bool,
+    address: u64,
+}
+
+impl VMCS {
+    pub unsafe fn get() -> u64 {
+        /* @todo seems to cause a compiler crash! */
+        //let mut value: u64 = 0;
+        //asm!("vmptrst $0": "=m" (value));
+        //value
+        0
+    }
+
+    pub fn new(address: u64) -> Option<Self> {
+        if !address.aligned(SHIFT_4K) {
+            return None;
+        }
+
+        Some(VMCS {
+            launched: false,
+            address: address,
+        })
+    }
+
+    pub unsafe fn load(&mut self) -> bool {
+        let error: bool;
+        /* @todo seems to cause a compiler crash */
+        //asm!("vmptrld $1; setna $0": "=qm" (error) : "m" (self.address));
+        asm!("vmptrld $0":: "m" (self.address));
+
+        true
+    }
+
+    pub unsafe fn clear(&mut self) -> bool {
+        asm!("vmclear $0":: "m" (self.address));
+        self.launched = false;
+        true
+    }
 }
