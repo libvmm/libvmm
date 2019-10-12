@@ -1,6 +1,15 @@
 use crate::{AlignedAddress, SHIFT_4K};
 use bitflags::bitflags;
 use libvmm_macros::*;
+use crate::x86_64::structures::guest::VcpuGuestRegs;
+
+global_asm!(include_str!("vmx.s"));
+
+extern "C" {
+    fn vmx_return() -> bool;
+    fn vmx_vmlaunch(guest_regs: &mut VcpuGuestRegs) -> bool;
+    fn vmx_vmresume(guest_regs: &mut VcpuGuestRegs) -> bool;
+}
 
 bitflags! {
     pub struct VMEntryControls: u32 {
@@ -421,12 +430,22 @@ impl VMCS {
         })
     }
 
+    pub unsafe fn run(&mut self, regs: &mut VcpuGuestRegs) -> bool {
+        if self.launched {
+            vmx_vmresume(regs)
+        } else {
+            self.launched = vmx_vmlaunch(regs);
+            self.launched
+        }
+    }
+
     pub unsafe fn load(&mut self) -> bool {
         let error: bool;
         /* @todo seems to cause a compiler crash */
         //asm!("vmptrld $1; setna $0": "=qm" (error) : "m" (self.address));
         asm!("vmptrld $0":: "m" (self.address));
 
+        VMCSField64Host::RIP.write(vmx_return as u64);
         true
     }
 
