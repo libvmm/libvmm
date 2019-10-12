@@ -85,3 +85,165 @@ pub fn vmcs_access(args: TokenStream, input: TokenStream) -> TokenStream {
             });
     }
 }
+
+struct PageTable {
+    visibility: Visibility,
+    table: Ident,
+    valid_flags: Expr,
+    valid_huge_flags: Expr,
+    huge_flags: Expr,
+    normal_shift: Expr,
+    huge_shift: Expr,
+    index_shift: Expr,
+}
+
+///
+/// Format of special syntax:
+///
+/// page_table! (
+///     pub struct <table> {
+///         valid_flags: <valid_bits>,
+///         valid_huge_flags: <valid_huge_flags>,
+///         huge_flags: <huge_flags>,
+///         normal_shift: <normal_shift>,
+///         huge_shift: <huge_shift>,
+///         index_shift: <index_shift>,
+///     }
+/// )
+///
+impl Parse for PageTable {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let visibility: Visibility = input.parse()?;
+        input.parse::<Token![struct]>()?;
+        let table: Ident = input.parse()?;
+
+        let content;
+        braced!(content in input);
+
+        let mut valid_flags: Option<Expr> = None;
+        let mut valid_huge_flags: Option<Expr> = None;
+        let mut huge_flags: Option<Expr> = None;
+        let mut normal_shift: Option<Expr> = None;
+        let mut huge_shift: Option<Expr> = None;
+        let mut index_shift: Option<Expr> = None;
+
+        loop {
+            if content.is_empty() {
+                break;
+            }
+
+            let ident: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+
+            match ident.to_string().as_str() {
+                "valid_flags" => { valid_flags.replace(content.parse()?); },
+                "valid_huge_flags" => { valid_huge_flags.replace(content.parse()?); },
+                "huge_flags" => { huge_flags.replace(content.parse()?); },
+                "normal_shift" => { normal_shift.replace(content.parse()?); },
+                "huge_shift" => { huge_shift.replace(content.parse()?); },
+                "index_shift" => { index_shift.replace(content.parse()?); },
+                _ => panic!("wrong identifier"),
+            }
+
+            content.parse::<Token![,]>()?;
+
+            if content.is_empty() {
+                break;
+            }
+
+        }
+
+        Ok(PageTable {
+            visibility: visibility,
+            table: table,
+            valid_flags: valid_flags.expect("missing 'valid_flags' attribute"),
+            valid_huge_flags: valid_huge_flags.expect("missing 'valid_huge_flags' attribute"),
+            huge_flags: huge_flags.expect("missing 'huge_flags' attribute"),
+            normal_shift: normal_shift.expect("missing 'normal_shift' attribute"),
+            huge_shift: huge_shift.expect("missing 'huge_shift' attribute"),
+            index_shift: index_shift.expect("missing 'index_shift' attribute"),
+        })
+    }
+}
+
+#[proc_macro]
+pub fn construct_pt_types(input: TokenStream) -> TokenStream {
+    let PageTable {
+        visibility,
+        table,
+        valid_flags,
+        valid_huge_flags,
+        huge_flags,
+        normal_shift,
+        huge_shift,
+        index_shift,
+    } = parse_macro_input!(input as PageTable);
+
+    let entry_name = format_ident!("{}Entry", table);
+    //let convert_macro_name = format_ident!("cast_to_{}", table);
+
+    let output = quote! {
+        #[repr(packed)]
+        #[derive(Debug, Clone, Copy)]
+        #visibility struct #entry_name(u64);
+
+        #[repr(packed)]
+        #visibility struct #table {
+            entries: [#entry_name; 512],
+        }
+
+        impl core::ops::Index<u64> for #table {
+            type Output = #entry_name;
+
+            fn index(&self, address: u64) -> &Self::Output {
+                let index = ((address) >> (#index_shift)) & 0x1ff;
+                &self.entries[index as usize]
+            }
+        }
+
+        impl core::ops::IndexMut<u64> for #table {
+            fn index_mut(&mut self, address: u64) -> &mut Self::Output {
+                let index = ((address) >> (#index_shift)) & 0x1ff;
+                &mut self.entries[index as usize]
+            }
+        }
+
+/* -- "[E0658]: procedural macros cannot expand to macro definitions"
+        #[macro_export]
+        macro_rules! #convert_macro_name {
+            ($x:expr) => {
+                unsafe_cast!($x => &mut #table)
+            }
+        }
+*/
+
+        impl #entry_name {
+            pub fn new(address: u64, flags: u64) -> Option<Self> {
+                let mut shift: u8 = #normal_shift;
+                let mut valid: u64 = #valid_flags;
+
+                if #huge_flags != 0 && ((flags & #huge_flags) == #huge_flags) {
+                    valid |= #valid_huge_flags;
+                    shift = #huge_shift;
+                }
+
+                let aligned = ((address & ((1 << shift) - 1)) == 0);
+                if !aligned || ((valid & flags) != flags) {
+                    return None;
+                }
+
+                Some(Self(address | flags))
+            }
+
+            pub fn raw(&self) -> u64 {
+                self.0
+            }
+
+            pub fn huge(&self) -> bool {
+                (self.0 & #huge_flags) == #huge_flags
+            }
+        }
+    };
+
+    TokenStream::from(output)
+}
