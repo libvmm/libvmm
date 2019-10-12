@@ -17,3 +17,6 @@ categories = [
     "no-std",
 ]
 edition = "2018"
+
+[dependencies]
+bitflags = "1.0.4"
