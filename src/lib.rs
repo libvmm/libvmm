@@ -29,3 +29,10 @@ impl AlignedAddress for u64 {
         return ((*self) & ((1 << shift) - 1)) == 0;
     }
 }
+
+#[macro_export]
+macro_rules! unsafe_cast {
+    ($x:expr => $t:ty) => {
+        unsafe { use core::mem::transmute; transmute::<_, $t>($x) }
+    }
+}
