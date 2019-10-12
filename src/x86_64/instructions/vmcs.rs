@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use libvmm_macros::*;
 
 bitflags! {
     pub struct VMEntryControls: u32 {
@@ -176,4 +177,220 @@ pub enum VMXExitReason {
     PML_FULL                = 62,
     XSAVES                  = 63,
     XRSTORS                 = 64,
+}
+
+#[vmcs_access(16, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField16Control {
+    VIRTUAL_PROCESSOR_ID    = 0x00000000,
+    POSTED_INTR_NV          = 0x00000002,
+    EPTP_INDEX              = 0x00000004,
+}
+
+#[vmcs_access(16, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField16Guest {
+    ES_SELECTOR     = 0x00000800,
+    CS_SELECTOR     = 0x00000802,
+    SS_SELECTOR     = 0x00000804,
+    DS_SELECTOR     = 0x00000806,
+    FS_SELECTOR     = 0x00000808,
+    GS_SELECTOR     = 0x0000080a,
+    LDTR_SELECTOR   = 0x0000080c,
+    TR_SELECTOR     = 0x0000080e,
+    INTR_STATUS     = 0x00000810,
+    PML_INDEX       = 0x00000812,
+}
+
+#[vmcs_access(16, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField16Host {
+    ES_SELECTOR = 0x00000c00,
+    CS_SELECTOR = 0x00000c02,
+    SS_SELECTOR = 0x00000c04,
+    DS_SELECTOR = 0x00000c06,
+    FS_SELECTOR = 0x00000c08,
+    GS_SELECTOR = 0x00000c0a,
+    TR_SELECTOR = 0x00000c0c,
+}
+
+#[vmcs_access(32, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField32Control {
+    PIN_BASED_VM_EXEC_CONTROL           = 0x00004000,
+    PROC_BASED_VM_EXEC_CONTROL          = 0x00004002,
+    EXCEPTION_BITMAP                    = 0x00004004,
+    PAGE_FAULT_ERROR_CODE_MASK          = 0x00004006,
+    PAGE_FAULT_ERROR_CODE_MATCH         = 0x00004008,
+    CR3_TARGET_COUNT                    = 0x0000400a,
+    VM_EXIT_CONTROLS                    = 0x0000400c,
+    VM_EXIT_MSR_STORE_COUNT             = 0x0000400e,
+    VM_EXIT_MSR_LOAD_COUNT              = 0x00004010,
+    VM_ENTRY_CONTROLS                   = 0x00004012,
+    VM_ENTRY_MSR_LOAD_COUNT             = 0x00004014,
+    VM_ENTRY_INTR_INFO_FIELD            = 0x00004016,
+    VM_ENTRY_EXCEPTION_ERROR_CODE       = 0x00004018,
+    VM_ENTRY_INSTRUCTION_LEN            = 0x0000401a,
+    TPR_THRESHOLD                       = 0x0000401c,
+    SECONDARY_VM_EXEC_CONTROL           = 0x0000401e,
+    PLE_GAP                             = 0x00004020,
+    PLE_WINDOW                          = 0x00004022,
+}
+
+#[vmcs_access(32, "R")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField32ReadOnly {
+    VM_INSTRUCTION_ERROR        = 0x00004400,
+    VM_EXIT_REASON              = 0x00004402,
+    VM_EXIT_INTR_INFO           = 0x00004404,
+    VM_EXIT_INTR_ERROR_CODE     = 0x00004406,
+    IDT_VECTORING_INFO_FIELD    = 0x00004408,
+    IDT_VECTORING_ERROR_CODE    = 0x0000440a,
+    VM_EXIT_INSTRUCTION_LEN     = 0x0000440c,
+    VMX_INSTRUCTION_INFO        = 0x0000440e,
+}
+
+#[vmcs_access(32, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField32Guest {
+    ES_LIMIT                    = 0x00004800,
+    CS_LIMIT                    = 0x00004802,
+    SS_LIMIT                    = 0x00004804,
+    DS_LIMIT                    = 0x00004806,
+    FS_LIMIT                    = 0x00004808,
+    GS_LIMIT                    = 0x0000480a,
+    LDTR_LIMIT                  = 0x0000480c,
+    TR_LIMIT                    = 0x0000480e,
+    GDTR_LIMIT                  = 0x00004810,
+    IDTR_LIMIT                  = 0x00004812,
+    ES_AR_BYTES                 = 0x00004814,
+    CS_AR_BYTES                 = 0x00004816,
+    SS_AR_BYTES                 = 0x00004818,
+    DS_AR_BYTES                 = 0x0000481a,
+    FS_AR_BYTES                 = 0x0000481c,
+    GS_AR_BYTES                 = 0x0000481e,
+    LDTR_AR_BYTES               = 0x00004820,
+    TR_AR_BYTES                 = 0x00004822,
+    INTERRUPTIBILITY_INFO       = 0x00004824,
+    ACTIVITY_STATE              = 0x00004826,
+    SYSENTER_CS                 = 0x0000482A,
+    VMX_PREEMPTION_TIMER_VALUE  = 0x0000482E,
+}
+
+
+#[vmcs_access(32, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField32Host {
+    IA32_SYSENTER_CS = 0x00004c00,
+}
+
+#[vmcs_access(64, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField64Control {
+    IO_BITMAP_A             = 0x00002000,
+    IO_BITMAP_B             = 0x00002002,
+    MSR_BITMAP              = 0x00002004,
+    VM_EXIT_MSR_STORE_ADDR  = 0x00002006,
+    VM_EXIT_MSR_LOAD_ADDR   = 0x00002008,
+    VM_ENTRY_MSR_LOAD_ADDR  = 0x0000200a,
+    PML_ADDRESS             = 0x0000200e,
+    TSC_OFFSET              = 0x00002010,
+    VIRTUAL_APIC_PAGE_ADDR  = 0x00002012,
+    APIC_ACCESS_ADDR        = 0x00002014,
+    POSTED_INTR_DESC_ADDR   = 0x00002016,
+    VM_FUNCTION_CONTROL     = 0x00002018,
+    EPT_POINTER             = 0x0000201a,
+    EOI_EXIT_BITMAP0        = 0x0000201c,
+    EOI_EXIT_BITMAP1        = 0x0000201e,
+    EOI_EXIT_BITMAP2        = 0x00002020,
+    EOI_EXIT_BITMAP3        = 0x00002022,
+    EPTP_LIST_ADDRESS       = 0x00002024,
+    VMREAD_BITMAP           = 0x00002026,
+    VMWRITE_BITMAP          = 0x00002028,
+    XSS_EXIT_BITMAP         = 0x0000202c,
+    ENCLS_EXITING_BITMAP    = 0x0000202e,
+    TSC_MULTIPLIER          = 0x00002032,
+
+    /* Natural Width */
+    CR0_GUEST_HOST_MASK     = 0x00006000,
+    CR4_GUEST_HOST_MASK     = 0x00006002,
+    CR0_READ_SHADOW         = 0x00006004,
+    CR4_READ_SHADOW         = 0x00006006,
+    CR3_TARGET_VALUE0       = 0x00006008,
+    CR3_TARGET_VALUE1       = 0x0000600a,
+    CR3_TARGET_VALUE2       = 0x0000600c,
+    CR3_TARGET_VALUE3       = 0x0000600e,
+}
+
+#[vmcs_access(64, "R")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField64ReadOnly {
+    GUEST_PHYSICAL_ADDRESS      = 0x00002400,
+
+    /* Natural Width */
+    EXIT_QUALIFICATION          = 0x00006400,
+    IO_RCX                      = 0x00006402,
+    IO_RSI                      = 0x00006404,
+    IO_RDI                      = 0x00006406,
+    IO_RIP                      = 0x00006408,
+    GUEST_LINEAR_ADDRESS        = 0x0000640a,
+}
+
+#[vmcs_access(64, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField64Guest {
+    VMCS_LINK_POINTER               = 0x00002800,
+    IA32_DEBUGCTL                   = 0x00002802,
+    IA32_PAT                        = 0x00002804,
+    IA32_EFER                       = 0x00002806,
+    IA32_PERF_GLOBAL_CTRL           = 0x00002808,
+    PDPTR0                          = 0x0000280a,
+    PDPTR1                          = 0x0000280c,
+    PDPTR2                          = 0x0000280e,
+    PDPTR3                          = 0x00002810,
+    BNDCFGS                         = 0x00002812,
+
+    /* Natural Width */
+    CR0                             = 0x00006800,
+    CR3                             = 0x00006802,
+    CR4                             = 0x00006804,
+    ES_BASE                         = 0x00006806,
+    CS_BASE                         = 0x00006808,
+    SS_BASE                         = 0x0000680a,
+    DS_BASE                         = 0x0000680c,
+    FS_BASE                         = 0x0000680e,
+    GS_BASE                         = 0x00006810,
+    LDTR_BASE                       = 0x00006812,
+    TR_BASE                         = 0x00006814,
+    GDTR_BASE                       = 0x00006816,
+    IDTR_BASE                       = 0x00006818,
+    DR7                             = 0x0000681a,
+    RSP                             = 0x0000681c,
+    RIP                             = 0x0000681e,
+    RFLAGS                          = 0x00006820,
+    PENDING_DBG_EXCEPTIONS          = 0x00006822,
+    SYSENTER_ESP                    = 0x00006824,
+    SYSENTER_EIP                    = 0x00006826,
+}
+
+#[vmcs_access(64, "RW")]
+#[derive(Debug, Copy, Clone)]
+pub enum VMCSField64Host {
+    IA32_PAT                    = 0x00002c00,
+    IA32_EFER                   = 0x00002c02,
+    IA32_PERF_GLOBAL_CTRL       = 0x00002c04,
+
+    /* Natural Width */
+    CR0                         = 0x00006c00,
+    CR3                         = 0x00006c02,
+    CR4                         = 0x00006c04,
+    FS_BASE                     = 0x00006c06,
+    GS_BASE                     = 0x00006c08,
+    TR_BASE                     = 0x00006c0a,
+    GDTR_BASE                   = 0x00006c0c,
+    IDTR_BASE                   = 0x00006c0e,
+    IA32_SYSENTER_ESP           = 0x00006c10,
+    IA32_SYSENTER_EIP           = 0x00006c12,
+    RSP                         = 0x00006c14,
+    RIP                         = 0x00006c16,
 }

@@ -1,6 +1,9 @@
 #![no_std]
 
 #[cfg(target_arch = "x86_64")]
+extern crate libvmm_macros;
+
+#[cfg(target_arch = "x86_64")]
 pub mod x86_64;
 
 const SHIFT_4K: u8 = 12;

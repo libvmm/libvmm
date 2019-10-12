@@ -20,3 +20,4 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.0.4"
+libvmm_macros = { path = "./libvmm_macros", version = "0.1.0" }
