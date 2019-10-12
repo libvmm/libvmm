@@ -1,5 +1,8 @@
 #![no_std]
 
+#[cfg(target_arch = "x86_64")]
+pub mod x86_64;
+
 const SHIFT_4K: u8 = 12;
 const SHIFT_2M: u8 = 21;
 const SHIFT_1G: u8 = 30;
