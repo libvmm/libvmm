@@ -1,0 +1,19 @@
+[package]
+name = "libvmm"
+description = "Virtual Machine Monitor"
+version = "0.1.0"
+authors = ["KarimAllah Ahmed <karim.allah.ahmed@gmail.com>"]
+documentation = "https://docs.rs/libvmm"
+repository = "https://github.com/KarimAllah/libvmm"
+license = "Apache-2.0"
+keywords = [
+    "amd64",
+    "x86_64",
+    "no_std",
+    "virtualization",
+    "vmm",
+]
+categories = [
+    "no-std",
+]
+edition = "2018"
