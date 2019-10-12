@@ -1,0 +1,23 @@
+[package]
+name = "libvmm_macros"
+description = "Virtual Machine Monitor macros"
+version = "0.1.0"
+authors = ["KarimAllah Ahmed <karim.allah.ahmed@gmail.com>"]
+documentation = "https://docs.rs/libvmm_macros"
+repository = "https://github.com/KarimAllah/libvmm"
+license = "Apache-2.0"
+edition = "2018"
+keywords = [
+    "amd64",
+    "x86_64",
+    "no_std",
+    "virtualization",
+    "vmm",
+]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.5", features = ["full"] }
+quote = "1.0.2"
