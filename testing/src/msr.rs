@@ -1,0 +1,16 @@
+pub const MSR_IA32_APIC_BASE: u32 = 0x1b;
+pub const MSR_IA32_FEATURE_CONTROL: u32 = 0x3a;
+pub const MSR_IA32_SYSENTER_CS: u32 = 0x174;
+pub const MSR_IA32_SYSENTER_ESP: u32 = 0x175;
+pub const MSR_IA32_SYSENTER_EIP: u32 = 0x176;
+pub const MSR_IA32_DEBUGCTLMSR: u32 = 0x1d9;
+pub const MSR_IA32_CR_PAT: u32 = 0x277;
+pub const MSR_IA32_VMX_BASIC: u32 = 0x480;
+pub const MSR_IA32_VMX_PINBASED_CTLS: u32 = 0x481;
+pub const MSR_IA32_VMX_PROCBASED_CTLS: u32 = 0x482;
+pub const MSR_IA32_VMX_EXIT_CTLS: u32 = 0x483;
+pub const MSR_IA32_VMX_ENTRY_CTLS: u32 = 0x484;
+pub const MSR_IA32_VMX_PROCBASED_CTLS2: u32 = 0x48b;
+pub const MSR_IA32_TSC_DEADLINE: u32 = 0x6e0;
+pub const MSR_FS_BASE: u32 = 0xc0000100;
+pub const MSR_GS_BASE: u32 = 0xc0000101;
