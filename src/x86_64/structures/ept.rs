@@ -27,6 +27,7 @@ bitflags! {
 }
 
 /// VMCS EPT Pointer
+#[derive(Debug, Copy, Clone)]
 pub struct EPTPointer(u64);
 
 impl EPTPointer {
