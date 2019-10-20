@@ -130,6 +130,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum VMXExitReason {
     EXCEPTION_NMI           = 0,
     EXTERNAL_INTERRUPT      = 1,
