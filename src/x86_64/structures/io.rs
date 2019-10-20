@@ -2,8 +2,8 @@ use super::bitmap::Bitmap;
 use crate::{AlignedAddress, PAGE_4K, SHIFT_4K};
 
 pub struct IOBitmap {
-    a: Bitmap,
-    b: Bitmap,
+    pub a: Bitmap,
+    pub b: Bitmap,
 }
 
 impl IOBitmap {
