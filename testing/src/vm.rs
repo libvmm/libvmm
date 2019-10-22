@@ -18,6 +18,10 @@ impl VM {
         phys + VM::phys_offset()
     }
 
+    pub fn virt_to_phys(virt: u64) -> u64 {
+        virt - VM::phys_offset()
+    }
+
     pub fn root_mm() -> PhysFrame {
         unsafe { ROOT.unwrap() }
     }

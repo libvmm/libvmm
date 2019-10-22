@@ -1,6 +1,7 @@
 **/*.swp
 Cargo.lock
 /testing/target
+/testing/src/test
 /target
 **/*.rs.bk
 .idea/

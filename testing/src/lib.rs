@@ -19,7 +19,6 @@ mod output;
 mod vmm;
 mod kernel;
 mod vm;
-mod msr;
 mod page_alloc;
 mod heap;
 
@@ -47,7 +46,6 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
 #[test_case]
 fn simple_register_access() {
     assert_eq!(run_guest(), true);
-    println!("[PASS ] simple register access");
 }
 
 pub fn test_runner(tests: &[&dyn Fn()]) {

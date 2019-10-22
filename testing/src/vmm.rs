@@ -1,28 +1,18 @@
 use crate::println;
 use crate::vm::VM;
-use crate::msr::*;
 use crate::page_alloc::page_alloc;
 use x86_64::registers::control::*;
-use x86_64::registers::model_specific::Msr;
 use x86_64::structures::DescriptorTablePointer;
 use x86_64::structures::paging::{PhysFrame, FrameAllocator};
 use libvmm::x86_64::instructions::VMX;
+use libvmm::x86_64::instructions::msr::*;
 use libvmm::x86_64::instructions::vmcs::*;
+use libvmm::x86_64::instructions::vmcs_validator::*;
 use libvmm::x86_64::structures::ept::*;
 use x86_64::registers::model_specific::Efer;
 use x86_64::registers::rflags;
 use libvmm::x86_64::structures::io::IOBitmap;
 use libvmm::x86_64::structures::guest::VcpuGuestRegs;
-
-fn adjust_controls(ctl: u32, msr: u32) -> u32 {
-    let mut result = ctl;
-    let value = unsafe { Msr::new(msr).read() };
-
-    result &= (value >> 32) as u32;
-    result |= value as u32;
-
-    result
-}
 
 fn get_gdt() -> DescriptorTablePointer {
     let gdt = DescriptorTablePointer {
@@ -102,12 +92,6 @@ fn get_rflags() -> u64 {
     rflags::read_raw()
 }
 
-fn exit_handler() {
-    let exit_reason = unsafe { VMCSField32ReadOnly::VM_EXIT_REASON.read() } as u16;
-
-    assert_eq!(exit_reason, VMXExitReason::HLT as u16);
-}
-
 fn read_cr4() -> u64 {
     let value: u64;
     unsafe {
@@ -139,16 +123,6 @@ fn write_cr3(value: u64) {
 pub struct VMM;
 
 impl VMM {
-    unsafe fn run(vmcs: &mut VMCS, regs: &mut VcpuGuestRegs) -> bool {
-        let result = vmcs.run(regs);
-
-        if result {
-            exit_handler();
-        }
-
-        result
-    }
-
     pub fn init() -> bool {
         let cpuid = unsafe { core::arch::x86_64::__cpuid(0x1) };
         let vmx = if cpuid.ecx & (1 << 5) == 0 { false } else { true };
@@ -160,8 +134,7 @@ impl VMM {
         /* Enable Virt Extensions */
         write_cr4(read_cr4() | (1 << 13));
 
-        let mut feature_control_msr = Msr::new(MSR_IA32_FEATURE_CONTROL);
-        let feature_control_value = unsafe { feature_control_msr.read() };
+        let feature_control_value = unsafe { MSR::IA32_FEATURE_CONTROL.read() };
 
         /*
          * bit[0]: Lock bit.
@@ -170,7 +143,7 @@ impl VMM {
         if feature_control_value & 0x0 == 0 {
             if feature_control_value & (1 << 2) == 0 {
                 unsafe {
-                    feature_control_msr.write(feature_control_value | (1 << 2));
+                    MSR::IA32_FEATURE_CONTROL.write(feature_control_value | (1 << 2));
                 }
             }
         } else {
@@ -184,7 +157,7 @@ impl VMM {
         let vmxon_vaddr = (VM::phys_to_virt(vmxon_region.start_address().as_u64())) as *mut u32;
 
         unsafe {
-            *vmxon_vaddr =  Msr::new(MSR_IA32_VMX_BASIC).read() as u32;
+            *vmxon_vaddr = MSR::IA32_VMX_BASIC.read() as u32;
             VMX::vmxon(vmxon_region.start_address().as_u64());
         }
 
@@ -234,18 +207,17 @@ fn setup_ept() -> EPTPointer {
     return eptp;
 }
 
-fn setup_iobitmap() -> (PhysFrame, PhysFrame) {
+fn setup_iobitmap() -> (IOBitmap, PhysFrame, PhysFrame) {
     let bitmap_a_frame = page_alloc().allocate_frame().unwrap();
     let bitmap_a_vaddr = VM::phys_to_virt(bitmap_a_frame.start_address().as_u64());
     let bitmap_b_frame = page_alloc().allocate_frame().unwrap();
     let bitmap_b_vaddr = VM::phys_to_virt(bitmap_b_frame.start_address().as_u64());
 
-    unsafe {
-        let mut iobitmap = IOBitmap::new_raw(bitmap_a_vaddr, bitmap_b_vaddr).unwrap();
-        iobitmap.passthrough(0x10);
-    }
+    let mut iobitmap = unsafe {
+        IOBitmap::new_raw(bitmap_a_vaddr, bitmap_b_vaddr).unwrap()
+    };
 
-    (bitmap_a_frame, bitmap_b_frame)
+    (iobitmap, bitmap_a_frame, bitmap_b_frame)
 }
 
 fn create_vmcs() -> VMCS {
@@ -254,17 +226,17 @@ fn create_vmcs() -> VMCS {
     let vmcs = VMCS::new(vmcs_page.start_address().as_u64()).unwrap();
 
     unsafe {
-        *vmcs_vaddr = Msr::new(MSR_IA32_VMX_BASIC).read() as u32;
+        *vmcs_vaddr = MSR::IA32_VMX_BASIC.read() as u32;
     }
 
     vmcs
 }
 
-fn setup_vmm() -> VMCS {
+fn setup_vmm() -> (IOBitmap, VMCS) {
     VMM::init();
 
     let eptp: EPTPointer = setup_ept();
-    let (bitmap_a_frame, bitmap_b_frame) = setup_iobitmap();
+    let (iobitmap, bitmap_a_frame, bitmap_b_frame) = setup_iobitmap();
     let mut vmcs = create_vmcs();
 
     unsafe {
@@ -276,11 +248,12 @@ fn setup_vmm() -> VMCS {
                 SecondaryVMExecControl::EPT
         ).bits();
         let primary_vm_exec_control = (
+                PrimaryVMExecControl::USE_IO_BITMAPS |
                 PrimaryVMExecControl::HLT_EXITING |
                 PrimaryVMExecControl::SECONDARY_CONTROLS
         ).bits();
         let vmexit_controls = (
-            VMExitControls::IA32E_MODE_GUEST |
+                VMExitControls::IA32E_MODE_GUEST |
                 VMExitControls::ACK_INTERRUPT_ON_EXIT |
                 VMExitControls::SAVE_PAT |
                 VMExitControls::LOAD_PAT |
@@ -288,8 +261,7 @@ fn setup_vmm() -> VMCS {
                 VMExitControls::LOAD_EFER
         ).bits();
         let vmentry_controls = (
-            //VMEntryControls::IA32E_MODE_GUEST |
-            VMEntryControls::LOAD_PAT |
+                VMEntryControls::LOAD_PAT |
                 VMEntryControls::LOAD_EFER
         ).bits();
 
@@ -297,22 +269,38 @@ fn setup_vmm() -> VMCS {
         VMCSField16Control::POSTED_INTR_NV.write(0);
         //VMCSField16Control::EPTP_INDEX.write(0);
 
-        VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.write(adjust_controls(0, MSR_IA32_VMX_PINBASED_CTLS));
-        VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(adjust_controls(primary_vm_exec_control, MSR_IA32_VMX_PROCBASED_CTLS));
+        let vmx_basic = MSR::IA32_VMX_BASIC.read();
+
+        VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.write(
+            VMCS::adjust_controls(vmx_basic, VMCSControl::PinBasedVmExec, 0)
+        );
+        VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(
+            VMCS::adjust_controls(vmx_basic, VMCSControl::PrimaryProcBasedVmExec,
+                                  primary_vm_exec_control)
+        );
+        VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.write(
+            VMCS::adjust_controls(vmx_basic, VMCSControl::SecondaryProcBasedVmExec,
+                                  secondary_vm_exec_control)
+        );
+        VMCSField32Control::VM_EXIT_CONTROLS.write(
+            VMCS::adjust_controls(vmx_basic, VMCSControl::VmExit, vmexit_controls)
+        );
+        VMCSField32Control::VM_ENTRY_CONTROLS.write(
+            VMCS::adjust_controls(vmx_basic, VMCSControl::VmEntry, vmentry_controls)
+        );
+
         VMCSField32Control::EXCEPTION_BITMAP.write(0x0);
         VMCSField32Control::PAGE_FAULT_ERROR_CODE_MASK.write(0x0);
         VMCSField32Control::PAGE_FAULT_ERROR_CODE_MATCH.write(0x0);
         VMCSField32Control::CR3_TARGET_COUNT.write(0);
-        VMCSField32Control::VM_EXIT_CONTROLS.write(adjust_controls(vmexit_controls, MSR_IA32_VMX_EXIT_CTLS));
         VMCSField32Control::VM_EXIT_MSR_STORE_COUNT.write(0);
         VMCSField32Control::VM_EXIT_MSR_LOAD_COUNT.write(0);
-        VMCSField32Control::VM_ENTRY_CONTROLS.write(adjust_controls(vmentry_controls, MSR_IA32_VMX_ENTRY_CTLS));
+
         VMCSField32Control::VM_ENTRY_MSR_LOAD_COUNT.write(0);
         VMCSField32Control::VM_ENTRY_INTR_INFO_FIELD.write(0);
         VMCSField32Control::VM_ENTRY_EXCEPTION_ERROR_CODE.write(0);
         VMCSField32Control::VM_ENTRY_INSTRUCTION_LEN.write(0);
         VMCSField32Control::TPR_THRESHOLD.write(0);
-        VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.write(adjust_controls(secondary_vm_exec_control, MSR_IA32_VMX_PROCBASED_CTLS2));
         //VMCSField32Control::PLE_GAP.write(0);
         //VMCSField32Control::PLE_WINDOW.write(0);
 
@@ -350,25 +338,25 @@ fn setup_vmm() -> VMCS {
 
         /*** Host ***/
         VMCSField64Host::IA32_EFER.write(Efer::read_raw());
-        VMCSField64Host::IA32_PAT.write(Msr::new(MSR_IA32_CR_PAT).read());
+        VMCSField64Host::IA32_PAT.write(MSR::IA32_CR_PAT.read());
 
         VMCSField64Host::CR0.write(Cr0::read_raw());
         VMCSField64Host::CR3.write(read_cr3());
         VMCSField64Host::CR4.write(read_cr4());
 
-        VMCSField64Host::FS_BASE.write(Msr::new(MSR_FS_BASE).read());
-        VMCSField64Host::GS_BASE.write(Msr::new(MSR_GS_BASE).read());
+        VMCSField64Host::FS_BASE.write(MSR::FS_BASE.read());
+        VMCSField64Host::GS_BASE.write(MSR::GS_BASE.read());
         /* todo: fix TR_BASE register */
         VMCSField64Host::TR_BASE.write(0x0);
 
         VMCSField64Host::GDTR_BASE.write(get_gdt().base);
         VMCSField64Host::IDTR_BASE.write(get_idt().base);
 
-        VMCSField64Host::IA32_SYSENTER_ESP.write(Msr::new(MSR_IA32_SYSENTER_ESP).read());
-        VMCSField64Host::IA32_SYSENTER_EIP.write(Msr::new(MSR_IA32_SYSENTER_EIP).read());
+        VMCSField64Host::IA32_SYSENTER_ESP.write(MSR::IA32_SYSENTER_ESP.read());
+        VMCSField64Host::IA32_SYSENTER_EIP.write(MSR::IA32_SYSENTER_EIP.read());
 
         //VMCSField64Host::RIP.write(vmx_return as u64);
-        VMCSField32Host::IA32_SYSENTER_CS.write(Msr::new(MSR_IA32_SYSENTER_CS).read() as u32);
+        VMCSField32Host::IA32_SYSENTER_CS.write(MSR::IA32_SYSENTER_CS.read() as u32);
 
         VMCSField16Host::ES_SELECTOR.write(get_es());
         VMCSField16Host::CS_SELECTOR.write(get_cs());
@@ -456,32 +444,63 @@ fn setup_vmm() -> VMCS {
         VMCSField64Guest::PENDING_DBG_EXCEPTIONS.write(0x0);
     }
 
-    vmcs
+    (iobitmap, vmcs)
 }
 
 pub fn run_guest() -> bool {
-    let mut vmcs = setup_vmm();
+    let (mut iobitmap, mut vmcs) = setup_vmm();
     let mut regs: VcpuGuestRegs = Default::default();
 
     unsafe {
-        assert_eq!(0x0 == regs.rax, true);
-        assert_eq!(0x0 == regs.rbx, true);
-        assert_eq!(0x0 == regs.rcx, true);
-        assert_eq!(0x0 == regs.rdx, true);
-        assert_eq!(0x0 == regs.rdi, true);
-        assert_eq!(0x0 == regs.rsi, true);
-        assert_eq!(0x0 == regs.rbp, true);
-
+        // Test 1
         VMCS::validate().expect("VMCS invalid");
-        assert_eq!(VMM::run(&mut vmcs, &mut regs), true);
+        assert_eq!(vmcs.run(&mut regs), true);
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
 
         assert_eq!(0x1 == regs.rax, true);
         assert_eq!(0x2 == regs.rbx, true);
         assert_eq!(0x3 == regs.rcx, true);
         assert_eq!(0x4 == regs.rdx, true);
-        assert_eq!(0x5 == regs.rdi, true);
-        assert_eq!(0x6 == regs.rsi, true);
-        assert_eq!(0x7 == regs.rbp, true);
+
+        println!("[PASS ] simple register access");
+
+        // Test 2
+        VMCS::skip_instruction();
+        VMCS::validate().expect("VMCS invalid");
+        assert_eq!(vmcs.run(&mut regs), true);
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+        assert_eq!(0x2 == regs.rax, true);
+
+        println!("[PASS ] exit on intercepted I/O port");
+
+
+        // Test 3
+        iobitmap.passthrough(0x15);
+        VMCS::skip_instruction();
+        VMCS::validate().expect("VMCS invalid");
+        assert_eq!(vmcs.run(&mut regs), true);
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+        assert_eq!(0x3 == regs.rax, true);
+
+        println!("[PASS ] no exit on passthrough port");
+
+        // Test 4
+        VMCS::skip_instruction();
+        VMCS::validate().expect("VMCS invalid");
+        assert_eq!(vmcs.run(&mut regs), true);
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::HLT as u16);
+        assert_eq!(0x4 == regs.rax, true);
+
+        println!("[PASS ] exit on HLT");
+
+        // Test 5
+        VMCS::skip_instruction();
+        VMCS::validate().expect("VMCS invalid");
+        assert_eq!(vmcs.run(&mut regs), true);
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+        assert_eq!(0x5 == regs.rax, true);
+
+        println!("[PASS ] exit on final intercepted port");
     }
 
     return true;
