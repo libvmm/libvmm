@@ -508,6 +508,11 @@ impl VMCS {
         }
     }
 
+    pub fn exit_reason() -> u16 {
+        let reason = unsafe { VMCSField32ReadOnly::VM_EXIT_REASON.read() } as u16;
+        reason
+    }
+
     // A.3, A.4, and A.5
     fn adjust_controls(vmx_basic: u64, control: VMCSControl, value: u32) -> u32 {
         let mut result = value;
