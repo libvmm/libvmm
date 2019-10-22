@@ -38,9 +38,9 @@ impl Bitmap {
 
     pub unsafe fn clear_bit(&mut self, offset: usize) {
         let index = offset >> 6;
-        let bit: u64 = (offset & 0x3f) as u64;
+        let bit = offset & 0x3f;
+        let array_offset = (self.array as u64) + (index as u64);
 
-        *((self.array as u64 + index as u64) as *mut u64) =
-            *((self.array as u64 + index as u64) as *mut u64) & !(1 << bit);
+        *((array_offset) as *mut u64) &= !((1 << bit) as u64);
     }
 }
