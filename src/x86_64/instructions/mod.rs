@@ -1,6 +1,7 @@
 use crate::{AlignedAddress, SHIFT_4K};
 
 pub mod vmcs;
+pub mod msr;
 
 pub struct VMX;
 

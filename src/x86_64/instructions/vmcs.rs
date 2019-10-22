@@ -1,6 +1,7 @@
-use crate::{AlignedAddress, SHIFT_4K};
 use bitflags::bitflags;
 use libvmm_macros::*;
+use crate::{AlignedAddress, SHIFT_4K};
+use crate::x86_64::instructions::msr::*;
 use crate::x86_64::structures::guest::VcpuGuestRegs;
 
 global_asm!(include_str!("vmx.s"));
@@ -444,30 +445,6 @@ pub enum VMCSControl {
     SecondaryProcBasedVmExecControl,
     VmExitControl,
     VmEntryControl,
-}
-
-#[derive(Copy, Clone)]
-pub enum MSR {
-    IA32_VMX_BASIC = 0x480,
-    IA32_VMX_PINBASED_CTLS = 0x481,
-    IA32_VMX_PROCBASED_CTLS = 0x482,
-    IA32_VMX_EXIT_CTLS = 0x483,
-    IA32_VMX_ENTRY_CTLS = 0x484,
-    IA32_VMX_TRUE_PINBASED_CTLS = 0x48d,
-    IA32_VMX_TRUE_PROCBASED_CTLS = 0x48e,
-    IA32_VMX_PROCBASED_CTLS2 = 0x48b,
-    IA32_VMX_TRUE_EXIT_CTLS = 0x48f,
-    IA32_VMX_TRUE_ENTRY_CTLS = 0x490,
-}
-
-impl MSR {
-    pub unsafe fn read(&self) -> u64 {
-        let low: u32;
-        let high: u32;
-
-        asm!("rdmsr" : "={eax}" (low), "={edx}" (high) : "{ecx}" (*self) : "memory" : "volatile");
-        ((high as u64) << 32) | (low as u64)
-    }
 }
 
 /// todo@
