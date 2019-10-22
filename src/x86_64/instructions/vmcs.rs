@@ -520,6 +520,17 @@ impl VMCS {
         true
     }
 
+    pub unsafe fn skip_instruction() -> u32 {
+        unsafe {
+            let len = VMCSField32ReadOnly::VM_EXIT_INSTRUCTION_LEN.read();
+            let ip = VMCSField64Guest::RIP.read();
+
+            VMCSField64Guest::RIP.write(ip + len as u64);
+
+            len
+        }
+    }
+
     // A.3, A.4, and A.5
     fn adjust_controls(vmx_basic: u64, control: VMCSControl, value: u32) -> u32 {
         let mut result = value;
