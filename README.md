@@ -9,6 +9,8 @@ Experimenting with building library VMM in Rust. Unclear what this will turn out
 
 ## Todo
 
+- [ ] Instruction emulation.
+- [ ] Create a library OS to use it for testing.
 - [ ] Add support for request-interrupt-window.
 - [ ] Add support for Interrupt on entry settings.
 - [ ] Add support for managing IOMMU page tables.
