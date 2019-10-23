@@ -9,6 +9,25 @@ Experimenting with building library VMM in Rust. Unclear what this will turn out
 
 ## Todo
 
+- [x] Basic VMCS handling support.
+- [x] Add a first unit test.
+- [x] Add basic EPT page table handling.
+- [x] Add support for managing MSR and IO bitmaps.
+- [x] Add support for skipping instructions.
+- [x] VMLaunch/VMResume support.
+- [x] Add basic VMCS validation code.
+- [ ] Add NMI support.
+- [ ] Add support for SGX virtualization.
+- [ ] Add processor craziness mitigations for speculation attacks.
+- [ ] Add MCE handling.
+- [ ] Add support for VPID.
+- [ ] MONITOR & MWAIT + APERF/MPERF emulation.
+- [ ] Add CPUID emulation.
+- [ ] Add PLE support.
+- [ ] Add TSC scaling support.
+- [ ] Add VMCS shadowing support.
+- [ ] Add preemption timer support.
+- [ ] Add PML support.
 - [ ] Instruction emulation.
 - [ ] Create a library OS to use it for testing.
 - [ ] Add support for request-interrupt-window.
