@@ -197,7 +197,7 @@ fn setup_ept() -> EPTPointer {
 
     let mut address = VM::phys_to_virt(guest_page.start_address().as_u64());
 
-    for byte in include_bytes!("test") {
+    for byte in include_bytes!("test").iter() {
         unsafe {
             *(address as *mut u8) = *byte;
         }
