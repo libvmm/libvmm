@@ -2,7 +2,6 @@
     mov $0x1, %al
     mov $0x2, %bl
     mov $0x3, %cl
-    mov $0x4, %dl
 
     // Test 1 - evaluate now!
     outb %al, $0xf4
@@ -24,4 +23,12 @@
 
     // Test 5 - evaluate now!
     mov $0x5, %al
+    hlt
+
+    // Test 6 - evaluate now!
+    mov $0x6, %al
+    hlt
+
+    // Test 7 - evaluate now!
+    mov $0x7, %al
     outb %al, $0xf4

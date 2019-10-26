@@ -421,7 +421,7 @@ pub struct VMCS {
 }
 
 impl VMCS {
-    pub unsafe fn get() -> u64 {
+    pub fn get() -> u64 {
         /* @todo seems to cause a compiler crash! */
         //let mut value: u64 = 0;
         //asm!("vmptrst $0": "=m" (value));
@@ -449,31 +449,29 @@ impl VMCS {
         }
     }
 
-    pub unsafe fn load(&mut self) -> bool {
+    pub fn load(&mut self) -> bool {
         let error: bool;
         /* @todo seems to cause a compiler crash */
         //asm!("vmptrld $1; setna $0": "=qm" (error) : "m" (self.address));
-        asm!("vmptrld $0":: "m" (self.address));
+        unsafe { asm!("vmptrld $0":: "m" (self.address)) };
 
         VMCSField64Host::RIP.write(vmx_return as u64);
         true
     }
 
-    pub unsafe fn clear(&mut self) -> bool {
-        asm!("vmclear $0":: "m" (self.address));
+    pub fn clear(&mut self) -> bool {
+        unsafe { asm!("vmclear $0":: "m" (self.address)) };
         self.launched = false;
         true
     }
 
-    pub unsafe fn skip_instruction() -> u32 {
-        unsafe {
-            let len = VMCSField32ReadOnly::VM_EXIT_INSTRUCTION_LEN.read();
-            let ip = VMCSField64Guest::RIP.read();
+    pub fn skip_instruction() -> u32 {
+        let len = VMCSField32ReadOnly::VM_EXIT_INSTRUCTION_LEN.read();
+        let ip = VMCSField64Guest::RIP.read();
 
-            VMCSField64Guest::RIP.write(ip + len as u64);
+        VMCSField64Guest::RIP.write(ip + len as u64);
 
-            len
-        }
+        len
     }
 
     pub fn exit_reason() -> u16 {

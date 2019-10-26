@@ -242,7 +242,6 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
     unsafe {
         vmcs.load();
 
-        /*** Control ***/
         let secondary_vm_exec_control = (
                 SecondaryVMExecControl::UNRESTRICTED_GUEST |
                 SecondaryVMExecControl::EPT
@@ -451,57 +450,95 @@ pub fn run_guest() -> bool {
     let (mut iobitmap, mut vmcs) = setup_vmm();
     let mut regs: VcpuGuestRegs = Default::default();
 
-    unsafe {
-        // Test 1
-        VMCS::validate().expect("VMCS invalid");
-        assert_eq!(vmcs.run(&mut regs), true);
-        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+    // Test 1
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
 
-        assert_eq!(0x1 == regs.rax, true);
-        assert_eq!(0x2 == regs.rbx, true);
-        assert_eq!(0x3 == regs.rcx, true);
-        assert_eq!(0x4 == regs.rdx, true);
+    assert_eq!(0x1 == regs.rax, true);
+    assert_eq!(0x2 == regs.rbx, true);
+    assert_eq!(0x3 == regs.rcx, true);
 
-        println!("[PASS ] simple register access");
+    println!("[PASS ] simple register access");
 
-        // Test 2
-        VMCS::skip_instruction();
-        VMCS::validate().expect("VMCS invalid");
-        assert_eq!(vmcs.run(&mut regs), true);
-        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-        assert_eq!(0x2 == regs.rax, true);
+    // Test 2
+    VMCS::skip_instruction();
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+    assert_eq!(0x2 == regs.rax, true);
 
-        println!("[PASS ] exit on intercepted I/O port");
+    println!("[PASS ] exit on intercepted I/O port");
 
 
-        // Test 3
-        iobitmap.passthrough(0x15);
-        VMCS::skip_instruction();
-        VMCS::validate().expect("VMCS invalid");
-        assert_eq!(vmcs.run(&mut regs), true);
-        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-        assert_eq!(0x3 == regs.rax, true);
+    // Test 3
+    unsafe { iobitmap.passthrough(0x15) };
+    VMCS::skip_instruction();
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+    assert_eq!(0x3 == regs.rax, true);
 
-        println!("[PASS ] no exit on passthrough port");
+    println!("[PASS ] no exit on passthrough port");
 
-        // Test 4
-        VMCS::skip_instruction();
-        VMCS::validate().expect("VMCS invalid");
-        assert_eq!(vmcs.run(&mut regs), true);
-        assert_eq!(VMCS::exit_reason(), VMXExitReason::HLT as u16);
-        assert_eq!(0x4 == regs.rax, true);
+    // Test 4
+    VMCS::skip_instruction();
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::HLT as u16);
+    assert_eq!(0x4 == regs.rax, true);
 
-        println!("[PASS ] exit on HLT");
+    println!("[PASS ] exit on HLT");
 
-        // Test 5
-        VMCS::skip_instruction();
-        VMCS::validate().expect("VMCS invalid");
-        assert_eq!(vmcs.run(&mut regs), true);
-        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-        assert_eq!(0x5 == regs.rax, true);
+    // Test 5
 
-        println!("[PASS ] exit on final intercepted port");
-    }
+    // disable hlt-exiting
+    let mut vm_exec_control = VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.read();
+    vm_exec_control &= !PrimaryVMExecControl::HLT_EXITING.bits();
+    VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(vm_exec_control);
+
+    // enable vmx preemption timer
+    let mut pin_exec_control = VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.read();
+    pin_exec_control |= PinVMExecControl::VMX_PREEMPTION_TIMER.bits();
+    VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.write(pin_exec_control);
+
+    VMCSField32Guest::VMX_PREEMPTION_TIMER_VALUE.write(0xfffff);
+
+    VMCS::skip_instruction();
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::PREEMPTION_TIMER as u16);
+    assert_eq!(0x5 == regs.rax, true);
+    assert_eq!(0x1 == VMCSField32Guest::ACTIVITY_STATE.read(), true);
+
+    println!("[PASS ] exit on preemption timer");
+
+    // Test 6
+    let mut vm_exec_control = VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.read();
+    vm_exec_control |= PrimaryVMExecControl::HLT_EXITING.bits();
+    VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(vm_exec_control);
+
+    let mut pin_exec_control = VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.read();
+    pin_exec_control &= !PinVMExecControl::VMX_PREEMPTION_TIMER.bits();
+    VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.write(pin_exec_control);
+
+    VMCSField32Guest::ACTIVITY_STATE.write(0x0);
+
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::HLT as u16);
+    assert_eq!(0x6 == regs.rax, true);
+
+    println!("[PASS ] exit on HLT again");
+
+    // Test 7
+    VMCS::skip_instruction();
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+    assert_eq!(0x7 == regs.rax, true);
+
+    println!("[PASS ] exit on final intercepted port");
 
     return true;
 }

@@ -36,8 +36,8 @@ fn max_address() -> u64 {
 
 impl VMCS {
     // 26.2.1.1
-    unsafe fn validate_vmx_exec_control() -> Result<(), VMCSValidationFailure> {
-        let vmx_basic = MSR::IA32_VMX_BASIC.read();
+    fn validate_vmx_exec_control() -> Result<(), VMCSValidationFailure> {
+        let vmx_basic = unsafe { MSR::IA32_VMX_BASIC.read() };
         let pin_based_vm_exec = VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.read();
         let proc_based_vm_exec = VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.read();
         let secondary_proc_based_vm_exec = VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.read();
@@ -179,32 +179,32 @@ impl VMCS {
     }
 
     /* 26.2.1.2 */
-    unsafe fn validate_vmx_exit_control() -> Result<(), VMCSValidationFailure> {
+    fn validate_vmx_exit_control() -> Result<(), VMCSValidationFailure> {
         Ok(())
     }
 
     /* 26.2.1.3 */
-    unsafe fn validate_vmx_entry_control() -> Result<(), VMCSValidationFailure> {
+    fn validate_vmx_entry_control() -> Result<(), VMCSValidationFailure> {
         Ok(())
     }
 
     /* 26.2.1 */
-    unsafe fn validate_vmx_controls() -> Result<(), VMCSValidationFailure> {
+    fn validate_vmx_controls() -> Result<(), VMCSValidationFailure> {
         Self::validate_vmx_exec_control()?;
         Self::validate_vmx_exit_control()?;
         Self::validate_vmx_entry_control()?;
         Ok(())
     }
 
-    unsafe fn validate_host_state() -> Result<(), VMCSValidationFailure> {
+    fn validate_host_state() -> Result<(), VMCSValidationFailure> {
         Ok(())
     }
 
-    unsafe fn validate_guest_state() -> Result<(), VMCSValidationFailure> {
+    fn validate_guest_state() -> Result<(), VMCSValidationFailure> {
         Ok(())
     }
 
-    pub unsafe fn validate() -> Result<(), VMCSValidationFailure> {
+    pub fn validate() -> Result<(), VMCSValidationFailure> {
         Self::validate_vmx_controls()?;
         Self::validate_host_state()?;
         Self::validate_guest_state()?;

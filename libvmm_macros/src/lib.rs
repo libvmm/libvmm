@@ -51,16 +51,16 @@ pub fn vmcs_access(args: TokenStream, input: TokenStream) -> TokenStream {
     let vm_size = format_ident!("u{}", width);
 
     let read_fn = quote! {
-        pub unsafe fn read(&self) -> #vm_size {
+        pub fn read(&self) -> #vm_size {
             let mut value: u64;
-            asm!("vmread $1, $0": "=r" (value): "r" (*self as u64));
+            unsafe { asm!("vmread $1, $0": "=r" (value): "r" (*self as u64)) };
             value as #vm_size
         }
     };
 
     let write_fn = quote! {
-        pub unsafe fn write(&self, value: #vm_size) {
-            asm!("vmwrite $0, $1":: "r" (value as u64), "r" (*self as u64));
+        pub fn write(&self, value: #vm_size) {
+            unsafe { asm!("vmwrite $0, $1":: "r" (value as u64), "r" (*self as u64)) };
         }
     };
 
