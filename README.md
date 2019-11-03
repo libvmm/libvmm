@@ -16,6 +16,8 @@ Experimenting with building library VMM in Rust. Unclear what this will turn out
 - [x] Add support for skipping instructions.
 - [x] VMLaunch/VMResume support.
 - [x] Add basic VMCS validation code.
+- [ ] Port kvm-unit-tests tests.
+- [ ] Port KVM kernel selftests.
 - [ ] Add NMI support.
 - [ ] Add support for SGX virtualization.
 - [ ] Add processor craziness mitigations for speculation attacks.
