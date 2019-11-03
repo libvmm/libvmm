@@ -1,18 +1,20 @@
 use crate::println;
 use crate::vm::VM;
+use x86_64::registers::rflags;
 use crate::page_alloc::page_alloc;
 use x86_64::registers::control::*;
+use x86_64::registers::model_specific::Efer;
 use x86_64::structures::DescriptorTablePointer;
 use x86_64::structures::paging::{PhysFrame, FrameAllocator};
+use libvmm::PAGE_4K;
 use libvmm::x86_64::instructions::VMX;
 use libvmm::x86_64::instructions::msr::*;
 use libvmm::x86_64::instructions::vmcs::*;
 use libvmm::x86_64::instructions::vmcs_validator::*;
 use libvmm::x86_64::structures::ept::*;
-use x86_64::registers::model_specific::Efer;
-use x86_64::registers::rflags;
 use libvmm::x86_64::structures::io::IOBitmap;
 use libvmm::x86_64::structures::guest::VcpuGuestRegs;
+use crate::emulator::*;
 
 fn get_gdt() -> DescriptorTablePointer {
     let gdt = DescriptorTablePointer {
@@ -449,6 +451,26 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
 pub fn run_guest() -> bool {
     let (mut iobitmap, mut vmcs) = setup_vmm();
     let mut regs: VcpuGuestRegs = Default::default();
+
+    let address = page_alloc().allocate_frame().unwrap().start_address().as_u64();
+    let mut vaddr = VM::phys_to_virt(address);
+    let ref mut context: EmulationContext = EmulationContext::new();
+    let raw_stream = include_bytes!("ap");
+    let ref mut stream = ByteStream::new(vaddr, raw_stream.len());
+
+    for byte in raw_stream.iter() {
+        unsafe {
+            *(vaddr as *mut u8) = *byte;
+        }
+        vaddr += 1;
+    }
+
+    loop {
+        decode_instruction(stream, context);
+        if context.failed() {
+            break;
+        }
+    }
 
     // Test 1
     VMCS::validate().expect("VMCS invalid");
