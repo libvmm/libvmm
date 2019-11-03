@@ -1,6 +1,6 @@
-use crate::{AlignedAddress, SHIFT_4K};
-use crate::x86_64::instructions::vmcs::*;
 use crate::x86_64::instructions::msr::*;
+use crate::x86_64::instructions::vmcs::*;
+use crate::{AlignedAddress, SHIFT_4K};
 
 #[derive(Debug)]
 pub enum VMCSValidationFailure {
@@ -43,25 +43,30 @@ impl VMCS {
         let secondary_proc_based_vm_exec = VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.read();
         let vmexit_controls = VMCSField32Control::VM_EXIT_CONTROLS.read();
 
-        if pin_based_vm_exec !=
-            Self::adjust_controls(vmx_basic,
-                                  VMCSControl::PinBasedVmExec,
-                                  pin_based_vm_exec) {
+        if pin_based_vm_exec
+            != Self::adjust_controls(vmx_basic, VMCSControl::PinBasedVmExec, pin_based_vm_exec)
+        {
             return Err(VMCSValidationFailure::PinBasedVmExecContrlFail);
         }
 
-        if proc_based_vm_exec !=
-            Self::adjust_controls(vmx_basic,
-                                  VMCSControl::PrimaryProcBasedVmExec,
-                                  proc_based_vm_exec) {
+        if proc_based_vm_exec
+            != Self::adjust_controls(
+                vmx_basic,
+                VMCSControl::PrimaryProcBasedVmExec,
+                proc_based_vm_exec,
+            )
+        {
             return Err(VMCSValidationFailure::PrimaryProcBasedVmExecControlFail);
         }
 
         if (proc_based_vm_exec & PrimaryVMExecControl::SECONDARY_CONTROLS.bits()) != 0 {
-            if secondary_proc_based_vm_exec !=
-                Self::adjust_controls(vmx_basic,
-                                      VMCSControl::SecondaryProcBasedVmExec,
-                                      secondary_proc_based_vm_exec) {
+            if secondary_proc_based_vm_exec
+                != Self::adjust_controls(
+                    vmx_basic,
+                    VMCSControl::SecondaryProcBasedVmExec,
+                    secondary_proc_based_vm_exec,
+                )
+            {
                 return Err(VMCSValidationFailure::SecondaryProcBasedVmExecContorlFail);
             }
         }
@@ -73,17 +78,17 @@ impl VMCS {
 
         if (proc_based_vm_exec & PrimaryVMExecControl::USE_IO_BITMAPS.bits()) != 0 {
             if !VMCSField64Control::IO_BITMAP_A.read().aligned(SHIFT_4K) {
-                return Err(VMCSValidationFailure::IoBitmapAAligned)
+                return Err(VMCSValidationFailure::IoBitmapAAligned);
             }
 
             if !VMCSField64Control::IO_BITMAP_A.read().aligned(SHIFT_4K) {
-                return Err(VMCSValidationFailure::IoBitmapBAligned)
+                return Err(VMCSValidationFailure::IoBitmapBAligned);
             }
         }
 
         if (proc_based_vm_exec & PrimaryVMExecControl::USE_MSR_BITMAP.bits()) != 0 {
             if !VMCSField64Control::MSR_BITMAP.read().aligned(SHIFT_4K) {
-                return Err(VMCSValidationFailure::MsrBitmapAligned)
+                return Err(VMCSValidationFailure::MsrBitmapAligned);
             }
         }
 
@@ -94,8 +99,11 @@ impl VMCS {
             }
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) != 0 &&
-            (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits()) == 0 {
+        if (proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) != 0
+            && (secondary_proc_based_vm_exec
+                & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits())
+                == 0
+        {
             let tpr_threshold = VMCSField32Control::TPR_THRESHOLD.read();
 
             if tpr_threshold & 0xffff_fff0 != 0 {
@@ -111,39 +119,55 @@ impl VMCS {
             */
         }
 
-        if (pin_based_vm_exec & PinVMExecControl::NMI_EXITING.bits()) == 0 &&
-            (pin_based_vm_exec & PinVMExecControl::VIRTUAL_NMIS.bits()) != 0 {
+        if (pin_based_vm_exec & PinVMExecControl::NMI_EXITING.bits()) == 0
+            && (pin_based_vm_exec & PinVMExecControl::VIRTUAL_NMIS.bits()) != 0
+        {
             return Err(VMCSValidationFailure::Nmi1);
         }
 
-        if (pin_based_vm_exec & PinVMExecControl::NMI_EXITING.bits()) == 0 &&
-            (proc_based_vm_exec & PrimaryVMExecControl::NMI_WINDOW_EXITING.bits()) != 0 {
+        if (pin_based_vm_exec & PinVMExecControl::NMI_EXITING.bits()) == 0
+            && (proc_based_vm_exec & PrimaryVMExecControl::NMI_WINDOW_EXITING.bits()) != 0
+        {
             return Err(VMCSValidationFailure::Nmi2);
         }
 
         if (proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) == 0 {
-            if (secondary_proc_based_vm_exec &
-                (SecondaryVMExecControl::VIRTUALIZE_X2APIC_MODE |
-                    SecondaryVMExecControl::APIC_REGISTER_VIRTUALIZATION |
-                    SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY).bits()) != 0 {
-                return Err(VMCSValidationFailure::TprShadowNotSet)
+            if (secondary_proc_based_vm_exec
+                & (SecondaryVMExecControl::VIRTUALIZE_X2APIC_MODE
+                    | SecondaryVMExecControl::APIC_REGISTER_VIRTUALIZATION
+                    | SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY)
+                    .bits())
+                != 0
+            {
+                return Err(VMCSValidationFailure::TprShadowNotSet);
             }
         }
 
-        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUALIZE_X2APIC_MODE.bits()) != 0 {
-            if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUALIZE_APIC_ACCESSES.bits()) != 0 {
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUALIZE_X2APIC_MODE.bits())
+            != 0
+        {
+            if (secondary_proc_based_vm_exec
+                & SecondaryVMExecControl::VIRTUALIZE_APIC_ACCESSES.bits())
+                != 0
+            {
                 return Err(VMCSValidationFailure::X2Apic);
             }
         }
 
-        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits()) != 0 {
+        if (secondary_proc_based_vm_exec
+            & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits())
+            != 0
+        {
             if (pin_based_vm_exec & PinVMExecControl::EXTERNAL_INTERRUPT_EXIT.bits()) == 0 {
                 return Err(VMCSValidationFailure::VirtualInterruptDelivery1);
             }
         }
 
         if (pin_based_vm_exec & PinVMExecControl::POSTED_INTERRUPTS.bits()) != 0 {
-            if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits()) == 0 {
+            if (secondary_proc_based_vm_exec
+                & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits())
+                == 0
+            {
                 return Err(VMCSValidationFailure::PostedInterrupt1);
             }
 
@@ -175,7 +199,6 @@ impl VMCS {
         }
 
         return Ok(());
-
     }
 
     /* 26.2.1.2 */

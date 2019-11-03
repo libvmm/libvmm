@@ -1,6 +1,6 @@
+use crate::{unsafe_cast, SHIFT_1G, SHIFT_2M, SHIFT_4K, SHIFT_512G};
 use bitflags::bitflags;
 use libvmm_macros::construct_pt_types;
-use crate::{SHIFT_1G, SHIFT_2M, SHIFT_4K, SHIFT_512G, unsafe_cast};
 
 bitflags! {
     pub struct EPTPFlags: u64 {
@@ -32,7 +32,7 @@ pub struct EPTPointer(u64);
 
 impl EPTPointer {
     pub fn new(address: u64, flags: EPTPFlags) -> Option<Self> {
-        if  (address & ((1 << SHIFT_4K) - 1)) != 0 {
+        if (address & ((1 << SHIFT_4K) - 1)) != 0 {
             return None;
         }
 
