@@ -14,13 +14,14 @@ extern crate rlibc;
 #[macro_use]
 extern crate libvmm;
 
+mod vm;
+mod vmm;
+mod heap;
 #[macro_use]
 mod output;
-mod vmm;
 mod kernel;
-mod vm;
+mod emulator;
 mod page_alloc;
-mod heap;
 
 use core::panic::PanicInfo;
 use bootloader::{BootInfo, entry_point};
