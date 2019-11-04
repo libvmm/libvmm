@@ -1,9 +1,9 @@
-use bootloader::BootInfo;
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
+use bootloader::BootInfo;
 use x86_64::structures::paging::FrameAllocator;
 use x86_64::structures::paging::PhysFrame;
-use x86_64::PhysAddr;
 use x86_64::structures::paging::Size4KiB;
+use x86_64::PhysAddr;
 
 static mut ALLOCATOR: Option<BootInfoFrameAllocator> = None;
 
@@ -30,16 +30,13 @@ impl BootInfoFrameAllocator {
     fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
         // get usable regions from memory map
         let regions = self.memory_map.iter();
-        let usable_regions = regions
-            .filter(|r| r.region_type == MemoryRegionType::Usable);
+        let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
         // map each region to its address range
-        let addr_ranges = usable_regions
-            .map(|r| r.range.start_addr()..r.range.end_addr());
+        let addr_ranges = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
         // transform to an iterator of frame start addresses
         let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
         // create `PhysFrame` types from the start addresses
-        frame_addresses
-            .map(|addr|PhysFrame::containing_address(PhysAddr::new(addr)))
+        frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
     }
 }
 
@@ -52,15 +49,11 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
 }
 
 pub fn page_alloc() -> &'static mut BootInfoFrameAllocator {
-    unsafe {
-        ALLOCATOR.as_mut().unwrap()
-    }
+    unsafe { ALLOCATOR.as_mut().unwrap() }
 }
 
 pub fn page_alloc_init(boot_info: &'static BootInfo) {
     unsafe {
-        ALLOCATOR.replace(
-            BootInfoFrameAllocator::init(&boot_info.memory_map)
-        );
+        ALLOCATOR.replace(BootInfoFrameAllocator::init(&boot_info.memory_map));
     }
 }

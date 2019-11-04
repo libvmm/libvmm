@@ -1,12 +1,12 @@
-use lazy_static::lazy_static;
+use crate::page_alloc::page_alloc_init;
+use crate::vm::VM;
 use bootloader::BootInfo;
+use lazy_static::lazy_static;
+use x86_64::instructions::segmentation::*;
+use x86_64::instructions::tables::*;
 use x86_64::registers::control::{Cr0, Cr0Flags};
 use x86_64::structures::gdt::*;
 use x86_64::structures::tss::*;
-use x86_64::instructions::segmentation::*;
-use x86_64::instructions::tables::*;
-use crate::vm::VM;
-use crate::page_alloc::page_alloc_init;
 
 static TSS: TaskStateSegment = TaskStateSegment::new();
 

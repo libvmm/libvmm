@@ -7,26 +7,26 @@
 #![feature(asm)]
 
 extern crate alloc;
-extern crate lazy_static;
 extern crate bootloader;
-extern crate x86_64;
+extern crate lazy_static;
 extern crate rlibc;
+extern crate x86_64;
 #[macro_use]
 extern crate libvmm;
 
+mod heap;
 mod vm;
 mod vmm;
-mod heap;
 #[macro_use]
 mod output;
-mod kernel;
 mod emulator;
+mod kernel;
 mod page_alloc;
 
-use core::panic::PanicInfo;
-use bootloader::{BootInfo, entry_point};
 use crate::kernel::*;
 use crate::vmm::run_guest;
+use bootloader::{entry_point, BootInfo};
+use core::panic::PanicInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -57,7 +57,6 @@ pub fn test_runner(tests: &[&dyn Fn()]) {
     println!("[END  ]");
     exit_qemu(QemuExitCode::Success);
 }
-
 
 #[cfg(test)]
 entry_point!(kernel_main);

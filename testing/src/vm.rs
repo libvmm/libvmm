@@ -11,7 +11,9 @@ impl VM {
     }
 
     pub fn set_phys_offset(offset: u64) {
-        unsafe { PHYS_OFFSET.replace(offset); }
+        unsafe {
+            PHYS_OFFSET.replace(offset);
+        }
     }
 
     pub fn phys_to_virt(phys: u64) -> u64 {

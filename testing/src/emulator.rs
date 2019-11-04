@@ -63,9 +63,7 @@ impl EmulationContext {
         let longmode = self.mode == Mode::PROT64;
         let rex_b = false;
 
-        (register & 0x7) |
-            ((rex_b as usize) << 3) |
-            ((longmode as usize) << 4)
+        (register & 0x7) | ((rex_b as usize) << 3) | ((longmode as usize) << 4)
     }
 
     pub fn register_read8(&self, index: usize, word: u8) -> u8 {
@@ -237,7 +235,7 @@ impl Registers {
 
     fn write32(&mut self, index: usize, value: u32, word: u8) {
         let offset = word * 32;
-        let mask = !(((1 as u64)<< offset) - 1);
+        let mask = !(((1 as u64) << offset) - 1);
         let result = (value as u64) << offset;
         self.reg[index] = (self.reg[index] & mask) | result;
     }
@@ -308,7 +306,7 @@ fn parse_prefix(stream: &mut ByteStream, context: &mut EmulationContext) {
         None => {
             context.fail();
             return;
-        },
+        }
     };
 
     // 2.1.1 Instruction prefix
@@ -316,71 +314,75 @@ fn parse_prefix(stream: &mut ByteStream, context: &mut EmulationContext) {
         // Escape
         0x0F => {
             stream.next();
-        },
+        }
 
         // Segment override
         0x2E => {
             context.cs_override = true;
             stream.next();
-        },
+        }
         0x36 => {
             context.ss_override = true;
             stream.next();
-        },
+        }
         0x3E => {
             context.ds_override = true;
             stream.next();
-        },
+        }
         0x26 => {
             context.es_override = true;
             stream.next();
-        },
+        }
         0x64 => {
             context.fs_override = true;
             stream.next();
-        },
+        }
         0x65 => {
             context.gs_override = true;
             stream.next();
-        },
+        }
 
         // Branch hints
         0x2E => {
             context.branch_taken = true;
             stream.next();
-        },
+        }
         0x3E => {
             context.branch_not_taken = true;
             stream.next();
-        },
+        }
 
         // Operand size override
         0x66 => {
             stream.next();
             match stream.peek() {
-                Some(0x0F) => { stream.next(); }
+                Some(0x0F) => {
+                    stream.next();
+                }
                 _ => context.operand_size_override = true,
             }
-        },
+        }
 
         // Address size override
         0x67 => {
             context.address_size_override = true;
             stream.next();
-        },
+        }
 
         // Lock
         0xF0 => {
             context.lock = true;
             stream.next();
-        },
+        }
 
         0xF2 | 0xF3 => {
             stream.next();
 
             match stream.peek() {
                 // Escape
-                Some(0x0F) => { stream.next(); },
+                Some(0x0F) => {
+                    stream.next();
+                }
                 // Repeat
                 _ => {
                     if instruction == 0xF2 {
@@ -400,9 +402,9 @@ fn parse_prefix(stream: &mut ByteStream, context: &mut EmulationContext) {
                     if instruction == 0xF3 {
                         context.rep = true;
                     }
-                },
+                }
             }
-        },
+        }
 
         _ => (),
     }
@@ -445,7 +447,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
         None => {
             context.fail();
             return;
-        },
+        }
     };
 
     match instruction {
@@ -460,7 +462,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // and al, imm8
         0x24 => {
             if let Some(imm8) = read_imm(input, 1) {
@@ -471,7 +473,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // xor %r16, %r16
         // xor %r32, %r32
         0x31 => {
@@ -491,7 +493,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 let result = context.register_read32(src, 0) ^ context.register_read32(dst, 0);
                 context.register_write32(dst, result, 0);
             }
-        },
+        }
         // mov r/m16, r16
         // mov r/m32, r32
         0x89 => {
@@ -510,7 +512,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // mov Sreg, r/m16
         0x8e => {
             if let Some(val) = input.next() {
@@ -523,7 +525,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // test al, imm8
         0xa8 => {
             if let Some(imm8) = read_imm(input, 1) {
@@ -538,9 +540,9 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // mov r8, imm8
-        0xb0 ... 0xb7 => {
+        0xb0...0xb7 => {
             if let Some(imm8) = read_imm(input, 1) {
                 let reg_index = (instruction & 0x7) as usize;
 
@@ -549,10 +551,10 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // mov r16, imm16
         // mov r32, imm32
-        0xb8 ... 0xbf => {
+        0xb8...0xbf => {
             let reg_index = (instruction & 0x7) as usize;
 
             if context.address_size() == 2 {
@@ -570,7 +572,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                     return;
                 }
             }
-        },
+        }
         // in al, imm8
         0xe4 => {
             if let Some(imm8) = read_imm(input, 1) {
@@ -591,7 +593,7 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
                 context.fail();
                 return;
             }
-        },
+        }
         // cli
         0xfa => {
             context.rflags.ief(false);
@@ -600,11 +602,11 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
         0xf4 => (),
         0xfc => {
             context.rflags.df(false);
-        },
+        }
         _ => {
             println!("[FAIL ] unknown opcode: 0x{:x}", instruction);
             context.fail();
-        },
+        }
     }
 
     return;

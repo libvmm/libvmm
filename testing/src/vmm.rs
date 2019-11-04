@@ -1,26 +1,23 @@
+use crate::emulator::*;
+use crate::page_alloc::page_alloc;
 use crate::println;
 use crate::vm::VM;
-use x86_64::registers::rflags;
-use crate::page_alloc::page_alloc;
-use x86_64::registers::control::*;
-use x86_64::registers::model_specific::Efer;
-use x86_64::structures::DescriptorTablePointer;
-use x86_64::structures::paging::{PhysFrame, FrameAllocator};
-use libvmm::PAGE_4K;
-use libvmm::x86_64::instructions::VMX;
 use libvmm::x86_64::instructions::msr::*;
 use libvmm::x86_64::instructions::vmcs::*;
 use libvmm::x86_64::instructions::vmcs_validator::*;
+use libvmm::x86_64::instructions::VMX;
 use libvmm::x86_64::structures::ept::*;
-use libvmm::x86_64::structures::io::IOBitmap;
 use libvmm::x86_64::structures::guest::VcpuGuestRegs;
-use crate::emulator::*;
+use libvmm::x86_64::structures::io::IOBitmap;
+use libvmm::PAGE_4K;
+use x86_64::registers::control::*;
+use x86_64::registers::model_specific::Efer;
+use x86_64::registers::rflags;
+use x86_64::structures::paging::{FrameAllocator, PhysFrame};
+use x86_64::structures::DescriptorTablePointer;
 
 fn get_gdt() -> DescriptorTablePointer {
-    let gdt = DescriptorTablePointer {
-        base: 0,
-        limit: 0
-    };
+    let gdt = DescriptorTablePointer { base: 0, limit: 0 };
 
     unsafe {
         asm!("sgdt ($0)":: "r"(&gdt): "memory");
@@ -30,10 +27,7 @@ fn get_gdt() -> DescriptorTablePointer {
 }
 
 fn get_idt() -> DescriptorTablePointer {
-    let idt = DescriptorTablePointer {
-        base: 0,
-        limit: 0
-    };
+    let idt = DescriptorTablePointer { base: 0, limit: 0 };
 
     unsafe {
         asm!("sidt ($0)":: "r"(&idt): "memory");
@@ -127,7 +121,11 @@ pub struct VMM;
 impl VMM {
     pub fn init() -> bool {
         let cpuid = unsafe { core::arch::x86_64::__cpuid(0x1) };
-        let vmx = if cpuid.ecx & (1 << 5) == 0 { false } else { true };
+        let vmx = if cpuid.ecx & (1 << 5) == 0 {
+            false
+        } else {
+            true
+        };
 
         if vmx == false {
             return false;
@@ -149,7 +147,7 @@ impl VMM {
                 }
             }
         } else {
-            if feature_control_value & (1 << 2)  == 0 {
+            if feature_control_value & (1 << 2) == 0 {
                 /* VMX disabled in BIOS */
                 return false;
             }
@@ -174,17 +172,19 @@ fn setup_ept() -> EPTPointer {
     let pt_page = page_alloc().allocate_frame().unwrap();
     let guest_page = page_alloc().allocate_frame().unwrap();
 
-    let eptp = EPTPointer::new(pml4_page.start_address().as_u64(), EPTPFlags::MT_WRITEBACK).unwrap();
+    let eptp =
+        EPTPointer::new(pml4_page.start_address().as_u64(), EPTPFlags::MT_WRITEBACK).unwrap();
 
     let pml4_table = ept_pml4_table!(VM::phys_to_virt(pml4_page.start_address().as_u64()));
     let pdp_table = ept_pdp_table!(VM::phys_to_virt(pdp_page.start_address().as_u64()));
     let pd_table = ept_pd_table!(VM::phys_to_virt(pd_page.start_address().as_u64()));
     let page_table = ept_page_table!(VM::phys_to_virt(pt_page.start_address().as_u64()));
 
-    let flags = (EPTEntryFlags::READABLE |
-        EPTEntryFlags::WRITABLE |
-        EPTEntryFlags::SUPERVISOR_EXECUTABLE |
-        EPTEntryFlags::USER_EXECUTABLE).bits();
+    let flags = (EPTEntryFlags::READABLE
+        | EPTEntryFlags::WRITABLE
+        | EPTEntryFlags::SUPERVISOR_EXECUTABLE
+        | EPTEntryFlags::USER_EXECUTABLE)
+        .bits();
 
     let pml4_entry = EPTPML4Entry::new(pdp_page.start_address().as_u64(), flags).unwrap();
     let pdp_entry = EPTPDPEntry::new(pd_page.start_address().as_u64(), flags).unwrap();
@@ -192,10 +192,10 @@ fn setup_ept() -> EPTPointer {
     let pt_entry = EPTPTEntry::new(guest_page.start_address().as_u64(), flags).unwrap();
 
     /* Create a mapping at guest virtual address 0x8000 */
-    pml4_table  [0x8000] = pml4_entry;
-    pdp_table   [0x8000] = pdp_entry;
-    pd_table    [0x8000] = pd_entry;
-    page_table  [0x8000] = pt_entry;
+    pml4_table[0x8000] = pml4_entry;
+    pdp_table[0x8000] = pdp_entry;
+    pd_table[0x8000] = pd_entry;
+    page_table[0x8000] = pt_entry;
 
     let mut address = VM::phys_to_virt(guest_page.start_address().as_u64());
 
@@ -215,9 +215,7 @@ fn setup_iobitmap() -> (IOBitmap, PhysFrame, PhysFrame) {
     let bitmap_b_frame = page_alloc().allocate_frame().unwrap();
     let bitmap_b_vaddr = VM::phys_to_virt(bitmap_b_frame.start_address().as_u64());
 
-    let mut iobitmap = unsafe {
-        IOBitmap::new_raw(bitmap_a_vaddr, bitmap_b_vaddr).unwrap()
-    };
+    let mut iobitmap = unsafe { IOBitmap::new_raw(bitmap_a_vaddr, bitmap_b_vaddr).unwrap() };
 
     (iobitmap, bitmap_a_frame, bitmap_b_frame)
 }
@@ -244,27 +242,20 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
     unsafe {
         vmcs.load();
 
-        let secondary_vm_exec_control = (
-                SecondaryVMExecControl::UNRESTRICTED_GUEST |
-                SecondaryVMExecControl::EPT
-        ).bits();
-        let primary_vm_exec_control = (
-                PrimaryVMExecControl::USE_IO_BITMAPS |
-                PrimaryVMExecControl::HLT_EXITING |
-                PrimaryVMExecControl::SECONDARY_CONTROLS
-        ).bits();
-        let vmexit_controls = (
-                VMExitControls::IA32E_MODE_GUEST |
-                VMExitControls::ACK_INTERRUPT_ON_EXIT |
-                VMExitControls::SAVE_PAT |
-                VMExitControls::LOAD_PAT |
-                VMExitControls::SAVE_EFER |
-                VMExitControls::LOAD_EFER
-        ).bits();
-        let vmentry_controls = (
-                VMEntryControls::LOAD_PAT |
-                VMEntryControls::LOAD_EFER
-        ).bits();
+        let secondary_vm_exec_control =
+            (SecondaryVMExecControl::UNRESTRICTED_GUEST | SecondaryVMExecControl::EPT).bits();
+        let primary_vm_exec_control = (PrimaryVMExecControl::USE_IO_BITMAPS
+            | PrimaryVMExecControl::HLT_EXITING
+            | PrimaryVMExecControl::SECONDARY_CONTROLS)
+            .bits();
+        let vmexit_controls = (VMExitControls::IA32E_MODE_GUEST
+            | VMExitControls::ACK_INTERRUPT_ON_EXIT
+            | VMExitControls::SAVE_PAT
+            | VMExitControls::LOAD_PAT
+            | VMExitControls::SAVE_EFER
+            | VMExitControls::LOAD_EFER)
+            .bits();
+        let vmentry_controls = (VMEntryControls::LOAD_PAT | VMEntryControls::LOAD_EFER).bits();
 
         VMCSField16Control::VIRTUAL_PROCESSOR_ID.write(0);
         VMCSField16Control::POSTED_INTR_NV.write(0);
@@ -272,23 +263,31 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
 
         let vmx_basic = MSR::IA32_VMX_BASIC.read();
 
-        VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.write(
-            VMCS::adjust_controls(vmx_basic, VMCSControl::PinBasedVmExec, 0)
-        );
-        VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(
-            VMCS::adjust_controls(vmx_basic, VMCSControl::PrimaryProcBasedVmExec,
-                                  primary_vm_exec_control)
-        );
-        VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.write(
-            VMCS::adjust_controls(vmx_basic, VMCSControl::SecondaryProcBasedVmExec,
-                                  secondary_vm_exec_control)
-        );
-        VMCSField32Control::VM_EXIT_CONTROLS.write(
-            VMCS::adjust_controls(vmx_basic, VMCSControl::VmExit, vmexit_controls)
-        );
-        VMCSField32Control::VM_ENTRY_CONTROLS.write(
-            VMCS::adjust_controls(vmx_basic, VMCSControl::VmEntry, vmentry_controls)
-        );
+        VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.write(VMCS::adjust_controls(
+            vmx_basic,
+            VMCSControl::PinBasedVmExec,
+            0,
+        ));
+        VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(VMCS::adjust_controls(
+            vmx_basic,
+            VMCSControl::PrimaryProcBasedVmExec,
+            primary_vm_exec_control,
+        ));
+        VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.write(VMCS::adjust_controls(
+            vmx_basic,
+            VMCSControl::SecondaryProcBasedVmExec,
+            secondary_vm_exec_control,
+        ));
+        VMCSField32Control::VM_EXIT_CONTROLS.write(VMCS::adjust_controls(
+            vmx_basic,
+            VMCSControl::VmExit,
+            vmexit_controls,
+        ));
+        VMCSField32Control::VM_ENTRY_CONTROLS.write(VMCS::adjust_controls(
+            vmx_basic,
+            VMCSControl::VmEntry,
+            vmentry_controls,
+        ));
 
         VMCSField32Control::EXCEPTION_BITMAP.write(0x0);
         VMCSField32Control::PAGE_FAULT_ERROR_CODE_MASK.write(0x0);
@@ -452,7 +451,11 @@ pub fn run_guest() -> bool {
     let (mut iobitmap, mut vmcs) = setup_vmm();
     let mut regs: VcpuGuestRegs = Default::default();
 
-    let address = page_alloc().allocate_frame().unwrap().start_address().as_u64();
+    let address = page_alloc()
+        .allocate_frame()
+        .unwrap()
+        .start_address()
+        .as_u64();
     let mut vaddr = VM::phys_to_virt(address);
     let ref mut context: EmulationContext = EmulationContext::new();
     let raw_stream = include_bytes!("ap");
@@ -491,7 +494,6 @@ pub fn run_guest() -> bool {
     assert_eq!(0x2 == regs.rax, true);
 
     println!("[PASS ] exit on intercepted I/O port");
-
 
     // Test 3
     unsafe { iobitmap.passthrough(0x15) };
