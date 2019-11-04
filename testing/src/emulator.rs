@@ -16,7 +16,9 @@ pub struct EmulationContext {
     operand_size_override: bool,
     address_size_override: bool,
     next: State,
+    rflags: RFlags,
     registers: Registers,
+    sregisters: [u16; 6],
 }
 
 impl EmulationContext {
@@ -38,7 +40,9 @@ impl EmulationContext {
             operand_size_override: false,
             address_size_override: false,
             next: State::Prefix,
+            rflags: RFlags(0),
             registers: Default::default(),
+            sregisters: Default::default(),
         }
     }
 
@@ -95,6 +99,14 @@ impl EmulationContext {
     pub fn register_write64(&mut self, index: usize, value: u64) {
         self.registers.write64(self.reg_index(index), value);
     }
+
+    pub fn sregister_read(&self, index: usize) -> u16 {
+        self.sregisters[index]
+    }
+
+    pub fn sregister_write(&mut self, index: usize, value: u16) {
+        self.sregisters[index] = value;
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -139,6 +151,51 @@ impl ModRM {
 
     pub fn REG(&self) -> u8 {
         self.0 & 0x7
+    }
+}
+
+#[derive(Debug, Default)]
+struct RFlags(u64);
+
+impl RFlags {
+    pub fn ief(&mut self, set: bool) {
+        if set {
+            self.0 |= ((1 << 9) as u64)
+        } else {
+            self.0 &= !((1 << 9) as u64)
+        }
+    }
+
+    pub fn df(&mut self, set: bool) {
+        if set {
+            self.0 |= ((1 << 10) as u64)
+        } else {
+            self.0 &= !((1 << 10) as u64)
+        }
+    }
+
+    pub fn pf(&mut self, set: bool) {
+        if set {
+            self.0 |= ((1 << 2) as u64)
+        } else {
+            self.0 &= !((1 << 2) as u64)
+        }
+    }
+
+    pub fn zf(&mut self, set: bool) {
+        if set {
+            self.0 |= ((1 << 6) as u64)
+        } else {
+            self.0 &= !((1 << 6) as u64)
+        }
+    }
+
+    pub fn sf(&mut self, set: bool) {
+        if set {
+            self.0 |= ((1 << 7) as u64)
+        } else {
+            self.0 &= !((1 << 7) as u64)
+        }
     }
 }
 
@@ -353,6 +410,19 @@ fn parse_prefix(stream: &mut ByteStream, context: &mut EmulationContext) {
     context.next = State::OpCode;
 }
 
+fn read_imm(input: &mut ByteStream, size: usize) -> Option<u64> {
+    let mut value: u64 = 0;
+
+    for index in 0..size {
+        match input.next() {
+            Some(entry) => value |= (entry << index) as u64,
+            None => return None,
+        }
+    }
+
+    Some(value)
+}
+
 pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext) {
     // # Protected Mode
     //
@@ -379,6 +449,29 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
     };
 
     match instruction {
+        // or al, imm8
+        0x0c => {
+            // todo@ update rflags
+            if let Some(imm8) = read_imm(input, 1) {
+                let al = context.register_read8(0, 0);
+                let result = (imm8 as u8) | al;
+                context.register_write8(0, result, 0);
+            } else {
+                context.fail();
+                return;
+            }
+        },
+        // and al, imm8
+        0x24 => {
+            if let Some(imm8) = read_imm(input, 1) {
+                let al = context.register_read8(0, 0);
+                let result = (imm8 as u8) & al;
+                context.register_write8(0, result, 0);
+            } else {
+                context.fail();
+                return;
+            }
+        },
         // xor %r16, %r16
         // xor %r32, %r32
         0x31 => {
@@ -402,50 +495,112 @@ pub fn decode_instruction(input: &mut ByteStream, context: &mut EmulationContext
         // mov r/m16, r16
         // mov r/m32, r32
         0x89 => {
-            let modrm = match input.next() {
-                Some(val) => ModRM(val),
-                None => {
-                    context.fail();
-                    return;
-                }
-            };
-            let (dst, src) = (modrm.RM() as usize, modrm.REG() as usize);
+            if let Some(val) = input.next() {
+                let modrm = ModRM(val);
+                let (dst, src) = (modrm.RM() as usize, modrm.REG() as usize);
 
-            if context.address_size() == 2 {
-                let result = context.register_read16(src, 0);
-                context.register_write16(dst, result, 0);
+                if context.address_size() == 2 {
+                    let result = context.register_read16(src, 0);
+                    context.register_write16(dst, result, 0);
+                } else {
+                    let result = context.register_read32(src, 0);
+                    context.register_write32(dst, result, 0);
+                }
             } else {
-                let result = context.register_read32(src, 0);
-                context.register_write32(dst, result, 0);
+                context.fail();
+                return;
+            }
+        },
+        // mov Sreg, r/m16
+        0x8e => {
+            if let Some(val) = input.next() {
+                let modrm = ModRM(val);
+                let (sreg, reg) = (modrm.REG() as usize, modrm.RM() as usize);
+                let value = context.register_read16(reg, 0);
+
+                context.sregister_write(sreg, value);
+            } else {
+                context.fail();
+                return;
+            }
+        },
+        // test al, imm8
+        0xa8 => {
+            if let Some(imm8) = read_imm(input, 1) {
+                let al = context.register_read8(0, 0);
+                let result = (imm8 as u8) & al;
+
+                // todo@ Convert this to a native operation and use rflags directly here
+                context.rflags.sf((result & 0x80) != 0);
+                context.rflags.zf(result == 0);
+                context.rflags.pf(false);
+            } else {
+                context.fail();
+                return;
             }
         },
         // mov r8, imm8
         0xb0 ... 0xb7 => {
+            if let Some(imm8) = read_imm(input, 1) {
+                let reg_index = (instruction & 0x7) as usize;
+
+                context.register_write8(reg_index, imm8 as u8, 0);
+            } else {
+                context.fail();
+                return;
+            }
+        },
+        // mov r16, imm16
+        // mov r32, imm32
+        0xb8 ... 0xbf => {
             let reg_index = (instruction & 0x7) as usize;
-            let imm8 = match input.next() {
-                Some(val) => val,
-                None => {
+
+            if context.address_size() == 2 {
+                if let Some(imm16) = read_imm(input, 2) {
+                    context.register_write16(reg_index, imm16 as u16, 0);
+                } else {
                     context.fail();
                     return;
                 }
-            };
-
-            context.register_write8(reg_index, imm8, 0);
+            } else {
+                if let Some(imm32) = read_imm(input, 4) {
+                    context.register_write32(reg_index, imm32 as u32, 0);
+                } else {
+                    context.fail();
+                    return;
+                }
+            }
         },
+        // in al, imm8
+        0xe4 => {
+            if let Some(imm8) = read_imm(input, 1) {
+                // todo handle this outside the emulator
+                let port_val: u8 = 0;
+
+                context.register_write8(0, port_val, 0);
+            } else {
+                context.fail();
+                return;
+            }
+        }
         // outb $imm, %al
         0xe6 => {
-            let imm8 = match input.next() {
-                Some(val) => val,
-                None => {
-                    context.fail();
-                    return;
-                }
-            };
-
-            // todo handle this outside
+            if let Some(imm8) = read_imm(input, 1) {
+                // todo handle this outside the emulator
+            } else {
+                context.fail();
+                return;
+            }
         },
+        // cli
+        0xfa => {
+            context.rflags.ief(false);
+        }
         // hlt
         0xf4 => (),
+        0xfc => {
+            context.rflags.df(false);
+        },
         _ => {
             println!("[FAIL ] unknown opcode: 0x{:x}", instruction);
             context.fail();
