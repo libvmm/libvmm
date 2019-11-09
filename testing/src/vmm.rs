@@ -2,6 +2,7 @@ use crate::emulator::*;
 use crate::page_alloc::page_alloc;
 use crate::println;
 use crate::vm::VM;
+use libvmm::x86_64::instructions::exits::*;
 use libvmm::x86_64::instructions::msr::*;
 use libvmm::x86_64::instructions::vmcs::*;
 use libvmm::x86_64::instructions::vmcs_validator::*;
@@ -479,10 +480,16 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-
     assert_eq!(0x1 == regs.rax, true);
     assert_eq!(0x2 == regs.rbx, true);
     assert_eq!(0x3 == regs.rcx, true);
+    let ioexit = IOExit::new();
+    assert_eq!(ioexit.is_out(), true);
+    assert_eq!(ioexit.size(), 1);
+    assert_eq!(ioexit.is_string(), false);
+    assert_eq!(ioexit.is_rep(), false);
+    assert_eq!(ioexit.port(), 0xf4);
+    assert_eq!(ioexit.is_op_immediate(), true);
 
     println!("[PASS ] simple register access");
 
@@ -492,6 +499,13 @@ pub fn run_guest() -> bool {
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
     assert_eq!(0x2 == regs.rax, true);
+    let ioexit = IOExit::new();
+    assert_eq!(ioexit.is_out(), true);
+    assert_eq!(ioexit.size(), 1);
+    assert_eq!(ioexit.is_string(), false);
+    assert_eq!(ioexit.is_rep(), false);
+    assert_eq!(ioexit.port(), 0x15);
+    assert_eq!(ioexit.is_op_immediate(), true);
 
     println!("[PASS ] exit on intercepted I/O port");
 
@@ -502,6 +516,13 @@ pub fn run_guest() -> bool {
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
     assert_eq!(0x3 == regs.rax, true);
+    let ioexit = IOExit::new();
+    assert_eq!(ioexit.is_out(), true);
+    assert_eq!(ioexit.size(), 1);
+    assert_eq!(ioexit.is_string(), false);
+    assert_eq!(ioexit.is_rep(), false);
+    assert_eq!(ioexit.port(), 0xf4);
+    assert_eq!(ioexit.is_op_immediate(), true);
 
     println!("[PASS ] no exit on passthrough port");
 
@@ -561,6 +582,13 @@ pub fn run_guest() -> bool {
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
     assert_eq!(0x7 == regs.rax, true);
+    let ioexit = IOExit::new();
+    assert_eq!(ioexit.is_out(), true);
+    assert_eq!(ioexit.size(), 1);
+    assert_eq!(ioexit.is_string(), false);
+    assert_eq!(ioexit.is_rep(), false);
+    assert_eq!(ioexit.port(), 0xf4);
+    assert_eq!(ioexit.is_op_immediate(), true);
 
     println!("[PASS ] exit on final intercepted port");
 
