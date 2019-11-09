@@ -2,6 +2,7 @@ use crate::{AlignedAddress, SHIFT_4K};
 
 pub mod msr;
 pub mod vmcs;
+pub mod exits;
 pub mod vmcs_validator;
 
 pub struct VMX;
