@@ -57,3 +57,48 @@ impl TSExit {
         }
     }
 }
+
+pub enum CRAccessType {
+    MovToCR,
+    MovFromCR,
+    CLTS,
+    LMSW,
+}
+
+pub struct CRAccessExit {
+    pub exit_qual: u64,
+}
+
+impl CRAccessExit {
+    pub fn new() -> Self {
+        Self {
+            exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+        }
+    }
+
+    pub fn cr(&self) -> usize {
+        (self.exit_qual & 0xf) as usize
+    }
+
+    pub fn access_type(&self) -> CRAccessType {
+        match (self.exit_qual >> 4) & 0x3 {
+            0 => CRAccessType::MovToCR,
+            1 => CRAccessType::MovFromCR,
+            2 => CRAccessType::CLTS,
+            3 => CRAccessType::LMSW,
+            _ => panic!("Invalid"),
+        }
+    }
+
+    pub fn is_lmsw_register(&self) -> bool {
+        ((self.exit_qual >> 6) & 1) == 0
+    }
+
+    pub fn reg(&self) -> usize {
+        ((self.exit_qual >> 8) & 0xf) as usize
+    }
+
+    pub fn lmsw_source(&self) -> usize {
+        ((self.exit_qual >> 16) & 0xff) as usize
+    }
+}
