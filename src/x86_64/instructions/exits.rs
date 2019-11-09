@@ -24,3 +24,36 @@ impl DebugExceptionExit {
         ((self.exit_qual >> 14) & 1) == 1
     }
 }
+
+pub enum TSExitSource {
+    CALL,
+    IRET,
+    JMP,
+    IDT,
+}
+
+pub struct TSExit {
+    pub exit_qual: u64,
+}
+
+impl TSExit {
+    pub fn new() -> Self {
+        Self {
+            exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+        }
+    }
+
+    pub fn selector(&self) -> u16 {
+        self.exit_qual as u16
+    }
+
+    pub fn source(&self) -> TSExitSource {
+        match (self.exit_qual >> 30) & 0x3 {
+            0 => TSExitSource::CALL,
+            1 => TSExitSource::IRET,
+            2 => TSExitSource::JMP,
+            3 => TSExitSource::IDT,
+            _ => panic!("Invalid"),
+        }
+    }
+}
