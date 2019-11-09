@@ -102,3 +102,44 @@ impl CRAccessExit {
         ((self.exit_qual >> 16) & 0xff) as usize
     }
 }
+
+pub struct IOExit {
+    pub exit_qual: u64,
+}
+
+impl IOExit {
+    pub fn new() -> Self {
+        Self {
+            exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self.exit_qual & 0x7 {
+            0 => 1,
+            1 => 2,
+            3 => 4,
+            _ => panic!("Invalid"),
+        }
+    }
+
+    pub fn is_out(&self) -> bool {
+        ((self.exit_qual >> 3) & 0x1) == 0
+    }
+
+    pub fn is_string(&self) -> bool {
+        ((self.exit_qual >> 4) & 0x1) == 1
+    }
+
+    pub fn is_rep(&self) -> bool {
+        ((self.exit_qual >> 5) & 0x1) == 1
+    }
+
+    pub fn is_op_immediate(&self) -> bool {
+        ((self.exit_qual >> 6) & 0x1) == 1
+    }
+
+    pub fn port(&self) -> u16 {
+        (self.exit_qual >> 16) as u16
+    }
+}
