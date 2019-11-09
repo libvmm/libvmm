@@ -167,3 +167,40 @@ impl IOExit {
         (self.exit_qual >> 16) as u16
     }
 }
+
+pub enum ApicAccessType {
+    LinearDataRead,
+    LinearDataWrite,
+    LinearInstructionFetch,
+    LinearEvent,
+    GuestEvent,
+    GuestInstruction,
+}
+
+pub struct ApicAccessExit {
+    pub exit_qual: u64,
+}
+
+impl ApicAccessExit {
+    pub fn new() -> Self {
+        Self {
+            exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+        }
+    }
+
+    pub fn offset(&self) -> usize {
+        (self.exit_qual & 0xfff) as usize
+    }
+
+    pub fn access_type(&self) -> ApicAccessType {
+        match (self.exit_qual >> 12) & 0xf {
+            0 => ApicAccessType::LinearDataRead,
+            1 => ApicAccessType::LinearDataWrite,
+            2 => ApicAccessType::LinearInstructionFetch,
+            3 => ApicAccessType::LinearEvent,
+            10 => ApicAccessType::GuestEvent,
+            15 => ApicAccessType::GuestInstruction,
+            _ => panic!("Invalid"),
+        }
+    }
+}
