@@ -103,6 +103,30 @@ impl CRAccessExit {
     }
 }
 
+pub struct MovDRExit {
+    pub exit_qual: u64,
+}
+
+impl MovDRExit {
+    pub fn new() -> Self {
+        Self {
+            exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+        }
+    }
+
+    pub fn debug_register(&self) -> usize {
+        (self.exit_qual & 0x3) as usize
+    }
+
+    pub fn is_to_dr(&self) -> bool {
+        ((self.exit_qual >> 4) & 0x1) == 0
+    }
+
+    pub fn register(&self) -> usize {
+        ((self.exit_qual >> 8) & 0xf) as usize
+    }
+}
+
 pub struct IOExit {
     pub exit_qual: u64,
 }
