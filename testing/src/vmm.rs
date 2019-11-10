@@ -590,7 +590,32 @@ pub fn run_guest() -> bool {
     assert_eq!(ioexit.port(), 0xf4);
     assert_eq!(ioexit.is_op_immediate(), true);
 
-    println!("[PASS ] exit on final intercepted port");
+    println!("[PASS ] exit on intercepted port");
+
+    // Test 8
+    VMCS::skip_instruction();
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::EPT_VIOLATION as u16);
+    assert_eq!(0xdead == regs.rbx, true);
+    let eptexit = EPTViolationExit::new();
+    assert_eq!(eptexit.violation_type(), EPTViolationType::DataRead);
+    assert_eq!(eptexit.guest_physical_address, 0xdead);
+
+    println!("[PASS ] exit on a read access");
+
+    // Test 9
+    VMCS::skip_instruction();
+    regs.rbx = 0xbeef;
+    VMCS::validate().expect("VMCS invalid");
+    assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+    assert_eq!(VMCS::exit_reason(), VMXExitReason::EPT_VIOLATION as u16);
+    assert_eq!(0xbeef == regs.rbx, true);
+    let eptexit = EPTViolationExit::new();
+    assert_eq!(eptexit.violation_type(), EPTViolationType::DataWrite);
+    assert_eq!(eptexit.guest_physical_address, 0xbeef);
+
+    println!("[PASS ] exit on a write access");
 
     return true;
 }

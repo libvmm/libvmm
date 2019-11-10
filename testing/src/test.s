@@ -32,3 +32,10 @@
     // Test 7 - evaluate now!
     mov $0x7, %al
     outb %al, $0xf4
+
+    // Test 8 - evaluate now!
+    mov $0xdead, %bx
+    mov (%bx), %bx
+
+    // Test 9 - evaluate now!
+    mov %ax, (%bx)

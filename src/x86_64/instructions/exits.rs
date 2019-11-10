@@ -207,6 +207,7 @@ impl ApicAccessExit {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum EPTViolationType {
     DataRead,
     DataWrite,
