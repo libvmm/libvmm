@@ -204,3 +204,62 @@ impl ApicAccessExit {
         }
     }
 }
+
+pub enum EPTViolationType {
+    DataRead,
+    DataWrite,
+    InstructionFetch,
+}
+
+pub struct EPTViolationExit {
+    pub exit_qual: u64,
+}
+
+impl EPTViolationExit {
+    pub fn new() -> Self {
+        Self {
+            exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+        }
+    }
+
+    pub fn violation_type(&self) -> EPTViolationType {
+        match self.exit_qual & 0x7 {
+            1 => EPTViolationType::DataRead,
+            2 => EPTViolationType::DataWrite,
+            4 => EPTViolationType::InstructionFetch,
+            _ => panic!("Invalid"),
+        }
+    }
+
+    pub fn is_reable(&self) -> bool {
+        ((self.exit_qual >> 3) & 0x1) == 1
+    }
+
+    pub fn is_writable(&self) -> bool {
+        ((self.exit_qual >> 4) & 0x1) == 1
+    }
+
+    pub fn is_executable(&self) -> bool {
+        ((self.exit_qual >> 5) & 0x1) == 1
+    }
+
+    pub fn is_user_executable(&self) -> bool {
+        ((self.exit_qual >> 6) & 0x1) == 1
+    }
+
+    pub fn is_valid(&self) -> bool {
+        ((self.exit_qual >> 7) & 0x1) == 1
+    }
+
+    pub fn is_pagetable(&self) -> bool {
+        ((self.exit_qual >> 8) & 0x1) == 1
+    }
+
+    pub fn is_supervisor(&self) -> bool {
+        ((self.exit_qual >> 9) & 0x1) == 0
+    }
+
+    pub fn is_nmi(&self) -> bool {
+        ((self.exit_qual >> 12) & 0x1) == 1
+    }
+}
