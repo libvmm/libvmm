@@ -192,11 +192,11 @@ fn setup_ept() -> EPTPointer {
     let pd_entry = EPTPDEntry::new(pt_page.start_address().as_u64(), flags).unwrap();
     let pt_entry = EPTPTEntry::new(guest_page.start_address().as_u64(), flags).unwrap();
 
-    /* Create a mapping at guest virtual address 0x8000 */
-    pml4_table[0x8000] = pml4_entry;
-    pdp_table[0x8000] = pdp_entry;
-    pd_table[0x8000] = pd_entry;
-    page_table[0x8000] = pt_entry;
+    /* Create a mapping at guest virtual address 0x0000 */
+    pml4_table[0x0000] = pml4_entry;
+    pdp_table[0x0000] = pdp_entry;
+    pd_table[0x0000] = pd_entry;
+    page_table[0x0000] = pt_entry;
 
     let mut address = VM::phys_to_virt(guest_page.start_address().as_u64());
 
@@ -380,7 +380,7 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
         VMCSField32Guest::DS_AR_BYTES.write(0x93);
 
         VMCSField16Guest::SS_SELECTOR.write(0);
-        VMCSField64Guest::SS_BASE.write(0);
+        VMCSField64Guest::SS_BASE.write(0x0000);
         VMCSField32Guest::SS_LIMIT.write(0xffff);
         VMCSField32Guest::SS_AR_BYTES.write(0x93);
 
@@ -394,8 +394,8 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
         VMCSField32Guest::GS_LIMIT.write(0xffff);
         VMCSField32Guest::GS_AR_BYTES.write(0x93);
 
-        VMCSField16Guest::CS_SELECTOR.write(0xf000);
-        VMCSField64Guest::CS_BASE.write(0x8000);
+        VMCSField16Guest::CS_SELECTOR.write(0x0000);
+        VMCSField64Guest::CS_BASE.write(0x0000);
         VMCSField32Guest::CS_LIMIT.write(0xffff);
         VMCSField32Guest::CS_AR_BYTES.write(0x9b);
 
@@ -440,8 +440,8 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
         VMCSField64Guest::RFLAGS.write(0x2);
         //VMCSField64Guest::SYSENTER_EIP.write(0x0);
         //VMCSField64Guest::SYSENTER_ESP.write(0x0);
-        VMCSField64Guest::RSP.write(0x0);
-        VMCSField64Guest::RIP.write(0x0);
+        VMCSField64Guest::RSP.write(0x1000);
+        VMCSField64Guest::RIP.write(0x0800);
         VMCSField64Guest::PENDING_DBG_EXCEPTIONS.write(0x0);
     }
 
@@ -616,6 +616,24 @@ pub fn run_guest() -> bool {
     assert_eq!(eptexit.guest_physical_address, 0xbeef);
 
     println!("[PASS ] exit on a write access");
+
+    // Test 10
+    for port in 0..0x12 {
+        VMCS::skip_instruction();
+        VMCS::validate().expect("VMCS invalid");
+        assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+        let eptexit = EPTViolationExit::new();
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+        let ioexit = IOExit::new();
+        assert_eq!(ioexit.is_out(), true);
+        assert_eq!(ioexit.size(), 1);
+        assert_eq!(ioexit.is_string(), false);
+        assert_eq!(ioexit.is_rep(), false);
+        assert_eq!(ioexit.port(), port);
+        assert_eq!(ioexit.is_op_immediate(), true);
+
+        println!("[PASS ] exit on a I/O from interrupt handler number: 0x{:x}", port);
+    }
 
     return true;
 }
