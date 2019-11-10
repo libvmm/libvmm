@@ -179,12 +179,14 @@ pub enum ApicAccessType {
 
 pub struct ApicAccessExit {
     pub exit_qual: u64,
+    pub guest_linear_address: u64,
 }
 
 impl ApicAccessExit {
     pub fn new() -> Self {
         Self {
             exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+            guest_linear_address: VMCSField64ReadOnly::GUEST_LINEAR_ADDRESS.read(),
         }
     }
 
@@ -213,12 +215,14 @@ pub enum EPTViolationType {
 
 pub struct EPTViolationExit {
     pub exit_qual: u64,
+    pub guest_physical_address: u64,
 }
 
 impl EPTViolationExit {
     pub fn new() -> Self {
         Self {
             exit_qual: VMCSField64ReadOnly::EXIT_QUALIFICATION.read(),
+            guest_physical_address: VMCSField64ReadOnly::GUEST_PHYSICAL_ADDRESS.read(),
         }
     }
 
