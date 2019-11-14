@@ -623,7 +623,7 @@ pub fn run_guest() -> bool {
     println!("[PASS ] exit on a write access");
 
     // Test 10
-    for port in 0..0x12 {
+    for port in 0..0x13 {
         VMCS::skip_instruction();
         VMCS::validate().expect("VMCS invalid");
         assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
