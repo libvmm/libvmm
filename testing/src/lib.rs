@@ -14,14 +14,17 @@ extern crate x86_64;
 #[macro_use]
 extern crate libvmm;
 
+mod io;
 mod heap;
 mod vm;
+mod pic;
 mod vmm;
 #[macro_use]
 mod output;
 mod emulator;
 mod kernel;
 mod page_alloc;
+mod interrupt_controller;
 
 use crate::kernel::*;
 use crate::vmm::run_guest;

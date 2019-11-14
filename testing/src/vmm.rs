@@ -2,6 +2,9 @@ use crate::emulator::*;
 use crate::page_alloc::page_alloc;
 use crate::println;
 use crate::vm::VM;
+use crate::pic::PIC;
+use crate::interrupt_controller::InterruptController;
+use libvmm::x86_64::interrupts::injection::*;
 use libvmm::x86_64::instructions::exits::*;
 use libvmm::x86_64::instructions::msr::*;
 use libvmm::x86_64::instructions::vmcs::*;
@@ -451,7 +454,6 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
 pub fn run_guest() -> bool {
     let (mut iobitmap, mut vmcs) = setup_vmm();
     let mut regs: VcpuGuestRegs = Default::default();
-
     let address = page_alloc()
         .allocate_frame()
         .unwrap()
@@ -461,6 +463,9 @@ pub fn run_guest() -> bool {
     let ref mut context: EmulationContext = EmulationContext::new();
     let raw_stream = include_bytes!("ap");
     let ref mut stream = ByteStream::new(vaddr, raw_stream.len());
+
+    PIC::reset();
+    PIC::disable();
 
     for byte in raw_stream.iter() {
         unsafe {
