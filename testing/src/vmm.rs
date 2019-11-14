@@ -503,7 +503,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-    assert_eq!(0x2 == regs.rax, true);
+    assert_eq!(regs.rax, 0x2);
     let ioexit = IOExit::new();
     assert_eq!(ioexit.is_out(), true);
     assert_eq!(ioexit.size(), 1);
@@ -520,7 +520,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-    assert_eq!(0x3 == regs.rax, true);
+    assert_eq!(regs.rax, 0x3);
     let ioexit = IOExit::new();
     assert_eq!(ioexit.is_out(), true);
     assert_eq!(ioexit.size(), 1);
@@ -536,7 +536,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::HLT as u16);
-    assert_eq!(0x4 == regs.rax, true);
+    assert_eq!(regs.rax, 0x4);
 
     println!("[PASS ] exit on HLT");
 
@@ -558,8 +558,8 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::PREEMPTION_TIMER as u16);
-    assert_eq!(0x5 == regs.rax, true);
-    assert_eq!(0x1 == VMCSField32Guest::ACTIVITY_STATE.read(), true);
+    assert_eq!(regs.rax, 0x5);
+    assert_eq!(VMCSField32Guest::ACTIVITY_STATE.read(), 0x1);
 
     println!("[PASS ] exit on preemption timer");
 
@@ -577,7 +577,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::HLT as u16);
-    assert_eq!(0x6 == regs.rax, true);
+    assert_eq!(regs.rax, 0x6);
 
     println!("[PASS ] exit on HLT again");
 
@@ -586,7 +586,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
-    assert_eq!(0x7 == regs.rax, true);
+    assert_eq!(regs.rax, 0x7);
     let ioexit = IOExit::new();
     assert_eq!(ioexit.is_out(), true);
     assert_eq!(ioexit.size(), 1);
@@ -602,7 +602,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::EPT_VIOLATION as u16);
-    assert_eq!(0xdead == regs.rbx, true);
+    assert_eq!(regs.rbx, 0xdead);
     let eptexit = EPTViolationExit::new();
     assert_eq!(eptexit.violation_type(), EPTViolationType::DataRead);
     assert_eq!(eptexit.guest_physical_address, 0xdead);
@@ -615,7 +615,7 @@ pub fn run_guest() -> bool {
     VMCS::validate().expect("VMCS invalid");
     assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
     assert_eq!(VMCS::exit_reason(), VMXExitReason::EPT_VIOLATION as u16);
-    assert_eq!(0xbeef == regs.rbx, true);
+    assert_eq!(regs.rbx, 0xbeef);
     let eptexit = EPTViolationExit::new();
     assert_eq!(eptexit.violation_type(), EPTViolationType::DataWrite);
     assert_eq!(eptexit.guest_physical_address, 0xbeef);
@@ -627,7 +627,6 @@ pub fn run_guest() -> bool {
         VMCS::skip_instruction();
         VMCS::validate().expect("VMCS invalid");
         assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
-        let eptexit = EPTViolationExit::new();
         assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
         let ioexit = IOExit::new();
         assert_eq!(ioexit.is_out(), true);
