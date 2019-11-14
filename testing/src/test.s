@@ -189,6 +189,9 @@ main:
     int $0x11
     int $0x12
 
+    // Test 11 - evaluate now!
+    jmp .
+
 .org 0xc00
 stack:
     .fill 1024, 0x0

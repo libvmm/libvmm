@@ -639,5 +639,23 @@ pub fn run_guest() -> bool {
         println!("[PASS ] exit on a I/O from interrupt handler number: 0x{:x}", port);
     }
 
+    VMCS::skip_instruction();
+
+    for port in 0..0x13 {
+        inject_event(port, IntType::HardwareException);
+        VMCS::validate().expect("VMCS invalid");
+        assert_eq!(unsafe { vmcs.run(&mut regs) }, true);
+        assert_eq!(VMCS::exit_reason(), VMXExitReason::IO_INSTRUCTION as u16);
+        let ioexit = IOExit::new();
+        assert_eq!(ioexit.is_out(), true);
+        assert_eq!(ioexit.size(), 1);
+        assert_eq!(ioexit.is_string(), false);
+        assert_eq!(ioexit.is_rep(), false);
+        assert_eq!(ioexit.port(), port as u16);
+        assert_eq!(ioexit.is_op_immediate(), true);
+
+        println!("[PASS ] injecting hardware exception: 0x{:x}", port);
+    }
+
     return true;
 }
