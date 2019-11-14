@@ -118,6 +118,7 @@ alignment_check:
 
 machine_check:
     outb %al, $0x11
+    iret
 
 simd_fpu_exception:
     outb %al, $0x12
