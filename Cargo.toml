@@ -4,7 +4,7 @@ description = "Virtual Machine Monitor"
 version = "0.1.0"
 authors = ["KarimAllah Ahmed <karim.allah.ahmed@gmail.com>"]
 documentation = "https://docs.rs/libvmm"
-repository = "https://github.com/KarimAllah/libvmm"
+repository = "https://github.com/libvmm/libvmm"
 license = "Apache-2.0"
 keywords = [
     "amd64",
