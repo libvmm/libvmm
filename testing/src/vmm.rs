@@ -1,9 +1,9 @@
 use crate::emulator::*;
-use crate::page_alloc::page_alloc;
-use crate::println;
-use crate::vm::VM;
-use crate::pic::PIC;
-use crate::interrupt_controller::InterruptController;
+use libos::page_alloc::page_alloc;
+use libos::println;
+use libos::vm::VM;
+use libos::pic::PIC;
+use libos::interrupt_controller::InterruptController;
 use libvmm::x86_64::interrupts::injection::*;
 use libvmm::x86_64::instructions::exits::*;
 use libvmm::x86_64::instructions::msr::*;

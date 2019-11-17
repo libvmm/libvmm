@@ -1,3 +1,5 @@
+use libos::println;
+
 #[derive(Debug)]
 pub struct EmulationContext {
     lock: bool,

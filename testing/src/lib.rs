@@ -13,23 +13,16 @@ extern crate rlibc;
 extern crate x86_64;
 #[macro_use]
 extern crate libvmm;
+extern crate libos;
 
-mod io;
-mod heap;
-mod vm;
-mod pic;
 mod vmm;
-#[macro_use]
-mod output;
 mod emulator;
-mod kernel;
-mod page_alloc;
-mod interrupt_controller;
 
-use crate::kernel::*;
+use libos::println;
+use libos::kernel::*;
 use crate::vmm::run_guest;
-use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use bootloader::{entry_point, BootInfo};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
