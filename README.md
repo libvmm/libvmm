@@ -20,6 +20,12 @@ $ cargo install cargo-xbuild
 $ cargo install bootimage
 ```
 
+## How to run the unit tests
+```
+$ cd src/testing
+$ make
+```
+
 
 ## Todo
 
