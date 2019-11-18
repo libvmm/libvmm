@@ -7,6 +7,12 @@ Experimenting with building library VMM in Rust. Unclear what this will turn out
  * Apache License, Version 2.0
    ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
 
+
+## New to Rust?!
+ - [Here](https://www.rust-lang.org/tools/install) you can find out how to install Rust on your system.
+ - [This](https://www.rust-lang.org/learn) is a very clear point to start off learning Rust or to find more details about it.
+
+
 ## Todo
 
 - [x] Basic VMCS handling support.
