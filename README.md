@@ -13,6 +13,14 @@ Experimenting with building library VMM in Rust. Unclear what this will turn out
  - [This](https://www.rust-lang.org/learn) is a very clear point to start off learning Rust or to find more details about it.
 
 
+## Installing project dependencies 
+```
+$ cargo install xargo
+$ cargo install cargo-xbuild
+$ cargo install bootimage
+```
+
+
 ## Todo
 
 - [x] Basic VMCS handling support.
