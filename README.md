@@ -15,10 +15,10 @@ Experimenting with building library VMM in Rust. Unclear what this will turn out
 
 ## Installing project dependencies 
 ```
-$ cargo install xargo
-$ cargo install cargo-xbuild
-$ cargo install bootimage
+$ ./scripts/install-deps
 ```
+
+- Logout and login again to make group modifications to be effective.
 
 ## How to run the unit tests
 ```

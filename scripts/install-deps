@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -e -u
+
+# Check if rust is installed
+if ! command -v rustc > /dev/null; then
+	echo "Installing rust toolchain via rustup"
+	curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
+	export PATH="${HOME}/.cargo/bin:${PATH}"
+else
+	rustup update --force
+fi
+
+rustup component add rust-src
+
+# Install project dependencies
+cargo install xargo
+cargo install cargo-xbuild
+cargo install bootimage
+
+ubuntu_packages=(
+	qemu
+)
+
+sudo apt-get install "${ubuntu_packages[@]}"
+
+echo "Add USER to kvm group to access /dev/kvm"
+sudo usermod -a -G kvm "$USER"
