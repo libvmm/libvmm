@@ -392,14 +392,14 @@ impl VMCS {
         let error: bool;
         /* @todo seems to cause a compiler crash */
         //asm!("vmptrld $1; setna $0": "=qm" (error) : "m" (self.address));
-        unsafe { asm!("vmptrld $0":: "m" (self.address)) };
+        unsafe { llvm_asm!("vmptrld $0":: "m" (self.address)) };
 
         VMCSField64Host::RIP.write(vmx_return as u64);
         true
     }
 
     pub fn clear(&mut self) -> bool {
-        unsafe { asm!("vmclear $0":: "m" (self.address)) };
+        unsafe { llvm_asm!("vmclear $0":: "m" (self.address)) };
         self.launched = false;
         true
     }

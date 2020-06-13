@@ -24,7 +24,7 @@ fn get_gdt() -> DescriptorTablePointer {
     let gdt = DescriptorTablePointer { base: 0, limit: 0 };
 
     unsafe {
-        asm!("sgdt ($0)":: "r"(&gdt): "memory");
+        llvm_asm!("sgdt ($0)":: "r"(&gdt): "memory");
     }
 
     gdt
@@ -34,7 +34,7 @@ fn get_idt() -> DescriptorTablePointer {
     let idt = DescriptorTablePointer { base: 0, limit: 0 };
 
     unsafe {
-        asm!("sidt ($0)":: "r"(&idt): "memory");
+        llvm_asm!("sidt ($0)":: "r"(&idt): "memory");
     }
 
     idt
@@ -42,49 +42,49 @@ fn get_idt() -> DescriptorTablePointer {
 
 fn get_cs() -> u16 {
     let segment: u16;
-    unsafe { asm!("mov %cs, $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("mov %cs, $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_ds() -> u16 {
     let segment: u16;
-    unsafe { asm!("mov %ds, $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("mov %ds, $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_es() -> u16 {
     let segment: u16;
-    unsafe { asm!("mov %es, $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("mov %es, $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_fs() -> u16 {
     let segment: u16;
-    unsafe { asm!("mov %fs, $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("mov %fs, $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_ss() -> u16 {
     let segment: u16;
-    unsafe { asm!("mov %ss, $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("mov %ss, $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_gs() -> u16 {
     let segment: u16;
-    unsafe { asm!("mov %gs, $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("mov %gs, $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_ldt() -> u16 {
     let segment: u16;
-    unsafe { asm!("sldt $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("sldt $0" : "=r" (segment) ) };
     segment
 }
 
 fn get_tr() -> u16 {
     let segment: u16;
-    unsafe { asm!("str $0" : "=r" (segment) ) };
+    unsafe { llvm_asm!("str $0" : "=r" (segment) ) };
     segment
 }
 
@@ -95,28 +95,28 @@ fn get_rflags() -> u64 {
 fn read_cr4() -> u64 {
     let value: u64;
     unsafe {
-        asm!("mov %cr4, $0" : "=r" (value));
+        llvm_asm!("mov %cr4, $0" : "=r" (value));
     }
     value
 }
 
 fn write_cr4(value: u64) {
     unsafe {
-        asm!("mov $0, %cr4" :: "r" (value));
+        llvm_asm!("mov $0, %cr4" :: "r" (value));
     }
 }
 
 fn read_cr3() -> u64 {
     let value: u64;
     unsafe {
-        asm!("mov %cr3, $0" : "=r" (value));
+        llvm_asm!("mov %cr3, $0" : "=r" (value));
     }
     value
 }
 
 fn write_cr3(value: u64) {
     unsafe {
-        asm!("mov $0, %cr3" :: "r" (value));
+        llvm_asm!("mov $0, %cr3" :: "r" (value));
     }
 }
 

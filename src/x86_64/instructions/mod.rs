@@ -13,12 +13,12 @@ impl VMX {
             return false;
         }
 
-        asm!("vmxon $0":: "m" (address));
+        llvm_asm!("vmxon $0":: "m" (address));
         true
     }
 
     pub unsafe fn vmxoff() {
-        asm!("vmxoff");
+        llvm_asm!("vmxoff");
     }
 
     pub unsafe fn vmcall() {}

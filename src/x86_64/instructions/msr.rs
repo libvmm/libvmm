@@ -32,7 +32,7 @@ impl MSR {
         let low: u32;
         let high: u32;
 
-        asm!("rdmsr" : "={eax}" (low), "={edx}" (high) : "{ecx}" (*self) : "memory" : "volatile");
+        llvm_asm!("rdmsr" : "={eax}" (low), "={edx}" (high) : "{ecx}" (*self) : "memory" : "volatile");
         ((high as u64) << 32) | (low as u64)
     }
 
@@ -40,6 +40,6 @@ impl MSR {
         let low = value as u32;
         let high = (value >> 32) as u32;
 
-        asm!("wrmsr" :: "{ecx}" (*self), "{eax}" (low), "{edx}" (high) : "memory" : "volatile" );
+        llvm_asm!("wrmsr" :: "{ecx}" (*self), "{eax}" (low), "{edx}" (high) : "memory" : "volatile" );
     }
 }

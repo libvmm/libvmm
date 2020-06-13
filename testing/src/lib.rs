@@ -4,7 +4,7 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(alloc_error_handler)]
-#![feature(asm)]
+#![feature(llvm_asm)]
 
 extern crate alloc;
 extern crate bootloader;
