@@ -37,29 +37,48 @@ fn max_address() -> u64 {
 impl VMCS {
     // 26.2.1.1
     fn validate_vmx_exec_control() -> Result<(), VMCSValidationFailure> {
-        let vmx_basic = unsafe { MSR::IA32_VMX_BASIC.read() };
         let pin_based_vm_exec = VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.read();
-        let proc_based_vm_exec = VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.read();
+        let vmx_basic = unsafe { MSR::IA32_VMX_BASIC.read() };
+        let vmx_misc = unsafe { MSR::IA32_VMX_MISC_MSR.read() };
+        let primary_proc_based_vm_exec =
+            VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.read();
         let secondary_proc_based_vm_exec = VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.read();
         let vmexit_controls = VMCSField32Control::VM_EXIT_CONTROLS.read();
 
+        /*
+         * Reserved bits in the pin-based VM-execution controls must be set properly.
+         * Software may consult the VMX capability MSRs to determine the proper
+         * settings (see Appendix A.3.1).
+         */
         if pin_based_vm_exec
             != Self::adjust_controls(vmx_basic, VMCSControl::PinBasedVmExec, pin_based_vm_exec)
         {
             return Err(VMCSValidationFailure::PinBasedVmExecContrlFail);
         }
 
-        if proc_based_vm_exec
+        /*
+         * Reserved bits in the primary processor-based VM-execution controls
+         * must be set properly. Software may consult the VMX capability MSRs
+         * to determine the proper settings (see Appendix A.3.2).
+         */
+        if primary_proc_based_vm_exec
             != Self::adjust_controls(
                 vmx_basic,
                 VMCSControl::PrimaryProcBasedVmExec,
-                proc_based_vm_exec,
+                primary_proc_based_vm_exec,
             )
         {
             return Err(VMCSValidationFailure::PrimaryProcBasedVmExecControlFail);
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::SECONDARY_CONTROLS.bits()) != 0 {
+        /*
+         * If the “activate secondary controls” primary processor-based
+         * VM-execution control is 1, reserved bits in the secondary
+         * processor-based VM-execution controls must be cleared. Software
+         * may consult the VMX capability MSRs to determine which bits are
+         * reserved (see Appendix A.3.3)
+         */
+        if (primary_proc_based_vm_exec & PrimaryVMExecControl::SECONDARY_CONTROLS.bits()) != 0 {
             if secondary_proc_based_vm_exec
                 != Self::adjust_controls(
                     vmx_basic,
@@ -71,35 +90,63 @@ impl VMCS {
             }
         }
 
-        let cr3_target_count = ((vmx_basic >> 16) & 0x1ff) as u32;
+        /*
+         * The CR3-target count must not be greater than 4. Future
+         * processors may support a different number of CR3-target values.
+         * Software should read the VMX capability MSR IA32_VMX_MISC to
+         * determine the number of values supported.
+         */
+        let cr3_target_count = ((vmx_misc >> 16) & 0x1ff) as u32;
         if VMCSField32Control::CR3_TARGET_COUNT.read() > cr3_target_count {
             return Err(VMCSValidationFailure::Cr3TargetCountFail);
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::USE_IO_BITMAPS.bits()) != 0 {
+        /*
+         * If the “use I/O bitmaps” VM-execution control is 1, bits 11:0
+         * of each I/O-bitmap address must be 0. Neither address should
+         * set any bits beyond the processor’s physical-address width. (MISSING)
+         */
+        if (primary_proc_based_vm_exec & PrimaryVMExecControl::USE_IO_BITMAPS.bits()) != 0 {
             if !VMCSField64Control::IO_BITMAP_A.read().aligned(SHIFT_4K) {
                 return Err(VMCSValidationFailure::IoBitmapAAligned);
             }
 
-            if !VMCSField64Control::IO_BITMAP_A.read().aligned(SHIFT_4K) {
+            if !VMCSField64Control::IO_BITMAP_B.read().aligned(SHIFT_4K) {
                 return Err(VMCSValidationFailure::IoBitmapBAligned);
             }
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::USE_MSR_BITMAP.bits()) != 0 {
+        /*
+         * If the “use MSR bitmaps” VM-execution control is 1, bits 11:0
+         * of the MSR-bitmap address must be 0. The address should not
+         * set any bits beyond the processor’s physical-address width. (MISSING)
+         */
+        if (primary_proc_based_vm_exec & PrimaryVMExecControl::USE_MSR_BITMAP.bits()) != 0 {
             if !VMCSField64Control::MSR_BITMAP.read().aligned(SHIFT_4K) {
                 return Err(VMCSValidationFailure::MsrBitmapAligned);
             }
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) != 0 {
+        /*
+         * If the “use TPR shadow” VM-execution control is 1, the
+         * virtual-APIC address must satisfy the following checks:
+         *    — Bits 11:0 of the address must be 0.
+         *    — The address should not set any bits beyond the processor’s
+         *      physical-address width. (MISSING)
+         */
+        if (primary_proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) != 0 {
             let apic_addr = VMCSField64Control::VIRTUAL_APIC_PAGE_ADDR.read();
             if !apic_addr.aligned(SHIFT_4K) {
                 return Err(VMCSValidationFailure::VirtualApicPageAligned);
             }
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) != 0
+        /*
+         * If the “use TPR shadow” VM-execution control is 1 and the
+         * “virtual-interrupt delivery” VM-execution control is 0, bits
+         * 31:4 of the TPR threshold VM-execution control field must be 0.
+         */
+        if (primary_proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) != 0
             && (secondary_proc_based_vm_exec
                 & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits())
                 == 0
@@ -110,6 +157,14 @@ impl VMCS {
                 return Err(VMCSValidationFailure::TprThresholdA);
             }
 
+            /*
+             * The following check is performed if the “use TPR shadow” VM-execution
+             * control is 1 and the “virtualize APIC acesses” and
+             * “virtual-interrupt delivery” VM-execution controls are both 0: the
+             * value of bits 3:0 of the TPR threshold VM-execution control field
+             * should not be greater than the value of bits 7:4 of VTPR
+             */
+
             /* @todo
             if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUALIZE_APIC_ACCESSES.bits()) == 0 {
                 if tpr_threshold > vtpr {
@@ -119,19 +174,42 @@ impl VMCS {
             */
         }
 
+        /*
+         * If the “NMI exiting” VM-execution control is 0, the “virtual NMIs” VM-execution control
+         * must be 0.
+         */
         if (pin_based_vm_exec & PinVMExecControl::NMI_EXITING.bits()) == 0
             && (pin_based_vm_exec & PinVMExecControl::VIRTUAL_NMIS.bits()) != 0
         {
             return Err(VMCSValidationFailure::Nmi1);
         }
 
-        if (pin_based_vm_exec & PinVMExecControl::NMI_EXITING.bits()) == 0
-            && (proc_based_vm_exec & PrimaryVMExecControl::NMI_WINDOW_EXITING.bits()) != 0
+        /*
+         * If the “virtual NMIs” VM-execution control is 0, the “NMI-window exiting” VM-execution
+         * control must be 0.
+         */
+        if (pin_based_vm_exec & PinVMExecControl::VIRTUAL_NMIS.bits()) == 0
+            && (primary_proc_based_vm_exec & PrimaryVMExecControl::NMI_WINDOW_EXITING.bits()) != 0
         {
             return Err(VMCSValidationFailure::Nmi2);
         }
 
-        if (proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) == 0 {
+        /*
+         * If the “virtualize APIC-accesses” VM-execution control is 1, the APIC-access address
+         * must satisfy the following checks:
+         *   — Bits 11:0 of the address must be 0.
+         *   — The address should not set any bits beyond the processor’s physical-address
+         *     width.
+         *
+         * TODO: Validation of this condition is missing.
+         */
+
+        /*
+         * If the “use TPR shadow” VM-execution control is 0, the following VM-execution controls
+         * must also be 0: “virtualize x2APIC mode”, “APIC-register virtualization”, and
+         * “virtual-interrupt delivery”.
+         */
+        if (primary_proc_based_vm_exec & PrimaryVMExecControl::USE_TPR_SHADOW.bits()) == 0 {
             if (secondary_proc_based_vm_exec
                 & (SecondaryVMExecControl::VIRTUALIZE_X2APIC_MODE
                     | SecondaryVMExecControl::APIC_REGISTER_VIRTUALIZATION
@@ -143,6 +221,10 @@ impl VMCS {
             }
         }
 
+        /*
+         * If the “virtualize x2APIC mode” VM-execution control is 1, the “virtualize APIC accesses”
+         * VM-execution control must be 0.
+         */
         if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VIRTUALIZE_X2APIC_MODE.bits())
             != 0
         {
@@ -154,6 +236,10 @@ impl VMCS {
             }
         }
 
+        /*
+         * If the “virtual-interrupt delivery” VM-execution control is 1, the “external-interrupt
+         * exiting” VM-execution control must be 1.
+         */
         if (secondary_proc_based_vm_exec
             & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits())
             != 0
@@ -163,7 +249,13 @@ impl VMCS {
             }
         }
 
+        /*
+         * If the “process posted interrupts” VM-execution control is 1, the following must be true:
+         */
         if (pin_based_vm_exec & PinVMExecControl::POSTED_INTERRUPTS.bits()) != 0 {
+            /*
+             * The “virtual-interrupt delivery” VM-execution control is 1.
+             */
             if (secondary_proc_based_vm_exec
                 & SecondaryVMExecControl::VIRTUAL_INTERRUPT_DELIVERY.bits())
                 == 0
@@ -171,27 +263,43 @@ impl VMCS {
                 return Err(VMCSValidationFailure::PostedInterrupt1);
             }
 
+            /*
+             * The “acknowledge interrupt on exit” VM-exit control is 1.
+             */
             if (vmexit_controls & VMExitControls::ACK_INTERRUPT_ON_EXIT.bits()) != 0 {
                 return Err(VMCSValidationFailure::PostedInterrupt2);
             }
 
+            /*
+             * The posted-interrupt notification vector has a value in the range 0–255
+             * (bits 15:8 are all 0).
+             */
             let posted_interrupt_vector = VMCSField16Control::POSTED_INTR_NV.read();
-
             if (posted_interrupt_vector & 0xff_00) != 0 {
                 return Err(VMCSValidationFailure::PostedInterrupt3);
             }
 
+            /*
+             * Bits 5:0 of the posted-interrupt descriptor address are all 0.
+             */
             if (posted_interrupt_vector & 0x1f) != 0 {
                 return Err(VMCSValidationFailure::PostedInterrupt4);
             }
 
+            /*
+             * The posted-interrupt descriptor address does not set any bits beyond the processor's
+             * physical-address width.
+             */
             let posted_interrupt_desc = VMCSField64Control::POSTED_INTR_DESC_ADDR.read();
-
             if posted_interrupt_desc > max_address() {
                 return Err(VMCSValidationFailure::PostedInterrupt5);
             }
         }
 
+        /*
+         * If the “enable VPID” VM-execution control is 1, the value of the VPID VM-execution
+         * control field must not be 0000H.
+         */
         if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VPID.bits()) != 0 {
             if VMCSField16Control::VIRTUAL_PROCESSOR_ID.read() == 0 {
                 return Err(VMCSValidationFailure::VPID);

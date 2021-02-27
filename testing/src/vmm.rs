@@ -1,15 +1,15 @@
 use crate::emulator::*;
+use libos::interrupt_controller::InterruptController;
 use libos::page_alloc::page_alloc;
+use libos::pic::PIC;
 use libos::println;
 use libos::vm::VM;
-use libos::pic::PIC;
-use libos::interrupt_controller::InterruptController;
-use libvmm::x86_64::interrupts::injection::*;
 use libvmm::x86_64::instructions::exits::*;
 use libvmm::x86_64::instructions::msr::*;
 use libvmm::x86_64::instructions::vmcs::*;
 use libvmm::x86_64::instructions::vmcs_validator::*;
 use libvmm::x86_64::instructions::VMX;
+use libvmm::x86_64::interrupts::injection::*;
 use libvmm::x86_64::structures::ept::*;
 use libvmm::x86_64::structures::guest::VcpuGuestRegs;
 use libvmm::x86_64::structures::io::IOBitmap;
@@ -22,7 +22,10 @@ use x86_64::structures::DescriptorTablePointer;
 use x86_64::VirtAddr;
 
 fn get_gdt() -> DescriptorTablePointer {
-    let gdt = DescriptorTablePointer { base: VirtAddr::zero(), limit: 0 };
+    let gdt = DescriptorTablePointer {
+        base: VirtAddr::zero(),
+        limit: 0,
+    };
 
     unsafe {
         llvm_asm!("sgdt ($0)":: "r"(&gdt): "memory");
@@ -32,7 +35,10 @@ fn get_gdt() -> DescriptorTablePointer {
 }
 
 fn get_idt() -> DescriptorTablePointer {
-    let idt = DescriptorTablePointer { base: VirtAddr::zero(), limit: 0 };
+    let idt = DescriptorTablePointer {
+        base: VirtAddr::zero(),
+        limit: 0,
+    };
 
     unsafe {
         llvm_asm!("sidt ($0)":: "r"(&idt): "memory");
@@ -273,7 +279,7 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
             VMCSControl::PinBasedVmExec,
             0,
         ));
-        VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(VMCS::adjust_controls(
+        VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.write(VMCS::adjust_controls(
             vmx_basic,
             VMCSControl::PrimaryProcBasedVmExec,
             primary_vm_exec_control,
@@ -544,9 +550,9 @@ pub fn run_guest() -> bool {
     // Test 5
 
     // disable hlt-exiting
-    let mut vm_exec_control = VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.read();
+    let mut vm_exec_control = VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.read();
     vm_exec_control &= !PrimaryVMExecControl::HLT_EXITING.bits();
-    VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(vm_exec_control);
+    VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.write(vm_exec_control);
 
     // enable vmx preemption timer
     let mut pin_exec_control = VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.read();
@@ -565,9 +571,9 @@ pub fn run_guest() -> bool {
     println!("[PASS ] exit on preemption timer");
 
     // Test 6
-    let mut vm_exec_control = VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.read();
+    let mut vm_exec_control = VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.read();
     vm_exec_control |= PrimaryVMExecControl::HLT_EXITING.bits();
-    VMCSField32Control::PROC_BASED_VM_EXEC_CONTROL.write(vm_exec_control);
+    VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.write(vm_exec_control);
 
     let mut pin_exec_control = VMCSField32Control::PIN_BASED_VM_EXEC_CONTROL.read();
     pin_exec_control &= !PinVMExecControl::VMX_PREEMPTION_TIMER.bits();
@@ -637,7 +643,10 @@ pub fn run_guest() -> bool {
         assert_eq!(ioexit.port(), port);
         assert_eq!(ioexit.is_op_immediate(), true);
 
-        println!("[PASS ] exit on a I/O from interrupt handler number: 0x{:x}", port);
+        println!(
+            "[PASS ] exit on a I/O from interrupt handler number: 0x{:x}",
+            port
+        );
     }
 
     VMCS::skip_instruction();

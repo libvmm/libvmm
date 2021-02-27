@@ -15,14 +15,14 @@ extern crate x86_64;
 extern crate libvmm;
 extern crate libos;
 
-mod vmm;
 mod emulator;
+mod vmm;
 
-use libos::println;
-use libos::kernel::*;
 use crate::vmm::run_guest;
-use core::panic::PanicInfo;
 use bootloader::{entry_point, BootInfo};
+use core::panic::PanicInfo;
+use libos::kernel::*;
+use libos::println;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
