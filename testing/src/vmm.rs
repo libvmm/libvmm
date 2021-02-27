@@ -19,9 +19,10 @@ use x86_64::registers::model_specific::Efer;
 use x86_64::registers::rflags;
 use x86_64::structures::paging::{FrameAllocator, PhysFrame};
 use x86_64::structures::DescriptorTablePointer;
+use x86_64::VirtAddr;
 
 fn get_gdt() -> DescriptorTablePointer {
-    let gdt = DescriptorTablePointer { base: 0, limit: 0 };
+    let gdt = DescriptorTablePointer { base: VirtAddr::zero(), limit: 0 };
 
     unsafe {
         llvm_asm!("sgdt ($0)":: "r"(&gdt): "memory");
@@ -31,7 +32,7 @@ fn get_gdt() -> DescriptorTablePointer {
 }
 
 fn get_idt() -> DescriptorTablePointer {
-    let idt = DescriptorTablePointer { base: 0, limit: 0 };
+    let idt = DescriptorTablePointer { base: VirtAddr::zero(), limit: 0 };
 
     unsafe {
         llvm_asm!("sidt ($0)":: "r"(&idt): "memory");
@@ -353,8 +354,8 @@ fn setup_vmm() -> (IOBitmap, VMCS) {
         /* todo: fix TR_BASE register */
         VMCSField64Host::TR_BASE.write(0x0);
 
-        VMCSField64Host::GDTR_BASE.write(get_gdt().base);
-        VMCSField64Host::IDTR_BASE.write(get_idt().base);
+        VMCSField64Host::GDTR_BASE.write(get_gdt().base.as_u64());
+        VMCSField64Host::IDTR_BASE.write(get_idt().base.as_u64());
 
         VMCSField64Host::IA32_SYSENTER_ESP.write(MSR::IA32_SYSENTER_ESP.read());
         VMCSField64Host::IA32_SYSENTER_EIP.write(MSR::IA32_SYSENTER_EIP.read());
