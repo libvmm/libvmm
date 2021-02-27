@@ -23,6 +23,7 @@ bitflags! {
         const LOAD_EFER                     = 1 << 15;
         const LOAD_BND_CFGS                 = 1 << 16;
         const CONCEAL_VMX_FROM_PT           = 1 << 17;
+        const LOAD_IA32_RTIT_CTL            = 1 << 18;
     }
 }
 
@@ -39,6 +40,7 @@ bitflags! {
         const SAVE_VMX_PREEMPTION_TIMER     = 1 << 22;
         const CLEAR_BND_CFGS                = 1 << 23;
         const CONCEAL_VMX_FROM_PT           = 1 << 24;
+        const CLEAR_IA32_RTIT_CTL           = 1 << 25;
     }
 }
 
@@ -79,6 +81,14 @@ bitflags! {
 }
 
 bitflags! {
+    pub struct EptVpidCap: u64 {
+        const EPT_MEM_TYPE_UC = 1 << 8;
+        const EPT_MEM_TYPE_WB = 1 << 14;
+        const ACCESSED_DIRTY_FLAG = 1 << 21;
+    }
+}
+
+bitflags! {
     pub struct SecondaryVMExecControl: u32 {
         const VIRTUALIZE_APIC_ACCESSES      = 1 << 0;
         const EPT                           = 1 << 1;
@@ -102,6 +112,8 @@ bitflags! {
         const CONCEAL_VMX_FROM_PT           = 1 << 19;
         const XSAVESXRSTORS                 = 1 << 20;
         const EXECUTE_CONTROL_EPT           = 1 << 22;
+        const SUB_PAGE_WRITE_PERM_EPT       = 1 << 23;
+        const PT_USE_GPA                    = 1 << 24;
         const TSC_SCALING                   = 1 << 25;
     }
 }
@@ -258,8 +270,10 @@ pub enum VMCSField64Control {
     EPTP_LIST_ADDRESS = 0x00002024,
     VMREAD_BITMAP = 0x00002026,
     VMWRITE_BITMAP = 0x00002028,
+    VIRTUALIZATION_EXCEPTION_INFROMATION_ADDRESS = 0x0000202A,
     XSS_EXIT_BITMAP = 0x0000202c,
     ENCLS_EXITING_BITMAP = 0x0000202e,
+    SPPT_POINTER = 0x00002030,
     TSC_MULTIPLIER = 0x00002032,
 
     /* Natural Width */

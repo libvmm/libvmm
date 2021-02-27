@@ -27,6 +27,21 @@ pub enum VMCSValidationFailure {
     PostedInterrupt4,
     PostedInterrupt5,
     VPID,
+    EptMemTypeUC,
+    EptMemTypeWB,
+    EptIncorrectPageWalkLength,
+    EptAccessedDirty,
+    EptReservedBitsLow,
+    PmlWithNoEpt,
+    PmlAddressAligned,
+    UnrestrictedGuestWithNoEpt,
+    SubPageWritePermWithNoEpt,
+    SPPTPointerAligned,
+    VmReadBitmapAligned,
+    VmWriteBitmapAligned,
+    VirtualizationExceptionInfromationAddressAligned,
+    PtUseGpa,
+    TscMultiplier,
 }
 
 /// todo@
@@ -43,6 +58,7 @@ impl VMCS {
         let primary_proc_based_vm_exec =
             VMCSField32Control::PRIMARY_PROC_BASED_VM_EXEC_CONTROL.read();
         let secondary_proc_based_vm_exec = VMCSField32Control::SECONDARY_VM_EXEC_CONTROL.read();
+        let vmentry_controls = VMCSField32Control::VM_ENTRY_CONTROLS.read();
         let vmexit_controls = VMCSField32Control::VM_EXIT_CONTROLS.read();
 
         /*
@@ -303,6 +319,186 @@ impl VMCS {
         if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VPID.bits()) != 0 {
             if VMCSField16Control::VIRTUAL_PROCESSOR_ID.read() == 0 {
                 return Err(VMCSValidationFailure::VPID);
+            }
+        }
+
+        /*
+         * If the “enable EPT” VM-execution control is 1, the EPTP VM-execution control field
+         * (see Table 24-8 in Section 24.6.11) must satisfy the following checks: 4
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::EPT.bits()) != 0 {
+            let ept_pointer = VMCSField64Control::EPT_POINTER.read();
+            let vmx_ept_vpid_cap = unsafe { MSR::IA32_VMX_EPT_VPID_CAP.read() };
+
+            /*
+             * The EPT memory type (bits 2:0) must be a value supported by the processor as
+             * indicated in the IA32_VMX_EPT_VPID_CAP MSR
+             */
+            let ept_mem_type = ept_pointer & 0x7;
+            if (vmx_ept_vpid_cap & EptVpidCap::EPT_MEM_TYPE_UC.bits()) != 0 {
+                if ept_mem_type != 0 {
+                    return Err(VMCSValidationFailure::EptMemTypeUC);
+                }
+            }
+
+            if (vmx_ept_vpid_cap & EptVpidCap::EPT_MEM_TYPE_WB.bits()) != 0 {
+                if ept_mem_type != 6 {
+                    return Err(VMCSValidationFailure::EptMemTypeWB);
+                }
+            }
+
+            /*
+             * Bits 5:3 (1 less than the EPT page-walk length) must be 3, indicating an EPT
+             * page-walk length of 4; see Section 28.2.2.
+             */
+            let ept_page_walk_length = (ept_pointer >> 3) & 0x7;
+            if ept_page_walk_length != 3 {
+                return Err(VMCSValidationFailure::EptIncorrectPageWalkLength);
+            }
+
+            /*
+             * Bit 6 (enable bit for accessed and dirty flags for EPT) must be 0 if bit 21 of the
+             * IA32_VMX_EPT_VPID_CAP MSR (see Appendix A.10) is read as 0, indicating that the
+             * processor does not support accessed and dirty flags for EPT.
+             */
+            if (vmx_ept_vpid_cap & EptVpidCap::ACCESSED_DIRTY_FLAG.bits()) == 0 {
+                let ept_accessed_dirty = ept_pointer & (1 << 6) as u64;
+                if ept_accessed_dirty != 0 {
+                    return Err(VMCSValidationFailure::EptAccessedDirty);
+                }
+            }
+
+            /*
+             * Reserved bits 11:7 and TODO: 63:N (where N is the processor’s physical-address width)
+             * must all be 0.
+             */
+            let ept_reserved_bits_low = (ept_pointer >> 7) & ((1 << 5) - 1);
+            if ept_reserved_bits_low != 0 {
+                return Err(VMCSValidationFailure::EptReservedBitsLow);
+            }
+        }
+
+        /*
+         * If the “enable PML” VM-execution control is 1, the “enable EPT” VM-execution control
+         * must also be 1. In addition, the PML address must satisfy the following checks
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::PML.bits()) != 0 {
+            if (secondary_proc_based_vm_exec & SecondaryVMExecControl::EPT.bits()) == 0 {
+                return Err(VMCSValidationFailure::PmlWithNoEpt);
+            }
+
+            /* Bits 11:0 of the address must be 0. */
+            if !VMCSField64Control::PML_ADDRESS.read().aligned(SHIFT_4K) {
+                return Err(VMCSValidationFailure::PmlAddressAligned);
+            }
+
+            /* TODO: The address should not set any bits beyond the processor’s physical-address
+             * width. */
+        }
+
+        /*
+         * If either the “unrestricted guest” VM-execution control or the “mode-based execute
+         * control for EPT” VM-execution control is 1, the “enable EPT” VM-execution control must
+         * also be 1.
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::UNRESTRICTED_GUEST.bits()) != 0
+            || (secondary_proc_based_vm_exec & SecondaryVMExecControl::EXECUTE_CONTROL_EPT.bits())
+                != 0
+        {
+            if (secondary_proc_based_vm_exec & SecondaryVMExecControl::EPT.bits()) == 0 {
+                return Err(VMCSValidationFailure::UnrestrictedGuestWithNoEpt);
+            }
+        }
+
+        /*
+         * If the “sub-page write permissions for EPT” VM-execution control is 1, the “enable EPT”
+         * VM-execution control must also be 1. In addition, the SPPTP VM-execution control field
+         * (see Table 24-10 in Section 24.6.21) must satisfy the following checks:
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::SUB_PAGE_WRITE_PERM_EPT.bits())
+            != 0
+        {
+            if (secondary_proc_based_vm_exec & SecondaryVMExecControl::EPT.bits()) == 0 {
+                return Err(VMCSValidationFailure::SubPageWritePermWithNoEpt);
+            }
+
+            /* Bits 11:0 of the address must be 0. */
+            if !VMCSField64Control::SPPT_POINTER.read().aligned(SHIFT_4K) {
+                return Err(VMCSValidationFailure::SPPTPointerAligned);
+            }
+
+            /* TODO: The address should not set any bits beyond the processor’s physical-address
+             * width. */
+        }
+
+        /*
+         * If the “VMCS shadowing” VM-execution control is 1, the VMREAD-bitmap and VMWRITE-bitmap
+         * addresses must each satisfy the following checks:
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::VMCS_SHADOWING.bits()) != 0 {
+            /*
+             * Bits 11:0 of the address must be 0.
+             */
+            if !VMCSField64Control::VMREAD_BITMAP.read().aligned(SHIFT_4K) {
+                return Err(VMCSValidationFailure::VmReadBitmapAligned);
+            }
+
+            if !VMCSField64Control::VMWRITE_BITMAP.read().aligned(SHIFT_4K) {
+                return Err(VMCSValidationFailure::VmWriteBitmapAligned);
+            }
+
+            /*
+             * TODO: The address must not set any bits beyond the processor’s physical-address
+             * width.
+             */
+        }
+
+        /*
+         * If the “EPT-violation #VE” VM-execution control is 1, the virtualization-exception
+         * information address must satisfy the following checks:
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::EPT_VIOLATION_VE.bits()) != 0 {
+            /*
+             * Bits 11:0 of the address must be 0.
+             */
+            if !VMCSField64Control::VIRTUALIZATION_EXCEPTION_INFROMATION_ADDRESS
+                .read()
+                .aligned(SHIFT_4K)
+            {
+                return Err(
+                    VMCSValidationFailure::VirtualizationExceptionInfromationAddressAligned,
+                );
+            }
+
+            /*
+             * TODO: The address must not set any bits beyond the processor’s physical-address
+             * width.
+             */
+        }
+
+        /*
+         * If the “Intel PT uses guest physical addresses” VM-execution control is 1, the following
+         * controls must also be 1:
+         *   - the “enable EPT” VM-execution control;
+         *   - the “load IA32_RTIT_CTL” VM-entry control; and
+         *   - the “clear IA32_RTIT_CTL” VM-exit control
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::PT_USE_GPA.bits()) != 0 {
+            if (secondary_proc_based_vm_exec & SecondaryVMExecControl::EPT.bits()) == 0
+                || (vmentry_controls & VMEntryControls::LOAD_IA32_RTIT_CTL.bits()) == 0
+                || (vmexit_controls & VMExitControls::CLEAR_IA32_RTIT_CTL.bits()) == 0
+            {
+                return Err(VMCSValidationFailure::PtUseGpa);
+            }
+        }
+
+        /*
+         * If the “use TSC scaling” VM-execution control is 1, the TSC-multiplier must not be zero.
+         */
+        if (secondary_proc_based_vm_exec & SecondaryVMExecControl::TSC_SCALING.bits()) != 0 {
+            let tsc_multiplier = VMCSField64Control::TSC_MULTIPLIER.read();
+            if tsc_multiplier == 0 {
+                return Err(VMCSValidationFailure::TscMultiplier);
             }
         }
 
